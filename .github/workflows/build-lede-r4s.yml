@@ -242,6 +242,8 @@ jobs:
           CONFIG_PACKAGE_kmod-veth=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           CONFIG_PACKAGE_kmod-macvlan=y
+          CONFIG_PACKAGE_kmod-mac80211=y
+          CONFIG_PACKAGE_kmod-mt7601u=y
           CONFIG_PACKAGE_kmod-wireguard=y
           CONFIG_PACKAGE_luci-proto-wireguard=y
           CONFIG_PACKAGE_wireguard-tools=y
@@ -320,6 +322,8 @@ jobs:
               'CONFIG_PACKAGE_luci-app-daede=y' \
               'CONFIG_PACKAGE_dae=y' \
               'CONFIG_PACKAGE_daed=y' \
+              'CONFIG_PACKAGE_kmod-mac80211=y' \
+              'CONFIG_PACKAGE_kmod-mt7601u=y' \
               'CONFIG_PACKAGE_kmod-wireguard=y' \
               'CONFIG_PACKAGE_luci-proto-wireguard=y' \
               'CONFIG_PACKAGE_wireguard-tools=y' \
@@ -513,6 +517,7 @@ jobs:
             echo '- dae / daed / luci-app-daede（内核 BTF + netkit）'
             echo '- luci-app-wizard（初始化向导，仅保留有效选项：上网/LAN/IPv6/可选内核模块）'
             echo '- USB 网卡驱动：RTL8152/8153、AX88179、CDC、RNDIS、4G 模块'
+            echo '- USB 无线：mac80211 框架 + MT7601U 驱动（照 xwrt）'
             echo '- WireGuard（内核 + LuCI 协议 + 工具）'
             echo '- Cryptodev & AF_ALG'
             echo '- 分区：系统 rootfs 512MB + 软件 overlay 1024MB（首启自动创建）'
