@@ -217,6 +217,7 @@ jobs:
           CONFIG_KERNEL_IPV6_MULTIPLE_TABLES=y
           CONFIG_KERNEL_XDP_SOCKETS=y
           # CONFIG_PACKAGE_kselftests-bpf is not set
+          CONFIG_BPF_TOOLCHAIN_HOST=y
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
           EOF
@@ -251,6 +252,7 @@ jobs:
               'CONFIG_PACKAGE_daed=y'; do
             grep -qxF "$key" .config || { echo "错误: 缺少 $key"; exit 1; }
           done
+          grep -qxF 'CONFIG_BPF_TOOLCHAIN_HOST=y' .config || { echo "错误: BPF 工具链未使用系统 clang (BPF_TOOLCHAIN_HOST)"; exit 1; }
           grep -qxF '# CONFIG_KERNEL_DEBUG_INFO_REDUCED is not set' .config || { echo "错误: DEBUG_INFO_REDUCED 未关闭"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_kselftests-bpf=y' .config && { echo "错误: kselftests-bpf 被选中（BTF 自动勾选）"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_fw4=y|^CONFIG_PACKAGE_nftables=y' .config && { echo "错误: fw4/nftables 被选中，违背单防火墙原则"; exit 1; }
