@@ -183,6 +183,39 @@ jobs:
           CONFIG_XDP_SOCKETS_DIAG=m
           EOF
 
+      - name: 应用 YAOF 兼容优化（LRNG / WireGuard hotplug / BTF / TCP / TEO / O2 / mitigations）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          cp -f ../yaof-patches/hack-6.12/*.patch ./target/linux/generic/hack-6.12/
+          cp -f ../yaof-patches/hack-6.12/lrng/*.patch ./target/linux/generic/hack-6.12/
+          cp -f ../yaof-patches/pending-6.12/*.patch ./target/linux/generic/pending-6.12/
+          [ -f target/linux/generic/hack-6.12/696-v60-0001-LRNG-Entropy-Source-and-DRNG-Manager.patch ] || { echo "错误: LRNG 补丁缺失"; exit 1; }
+          [ -f target/linux/generic/hack-6.12/950-wireguard-support-hotplug.patch ] || { echo "错误: WireGuard hotplug 补丁缺失"; exit 1; }
+          cat >> target/linux/generic/config-6.12 <<'EOF'
+          # CONFIG_RANDOM_DEFAULT_IMPL is not set
+          CONFIG_LRNG=y
+          CONFIG_LRNG_DEV_IF=y
+          # CONFIG_LRNG_IRQ is not set
+          CONFIG_LRNG_JENT=y
+          CONFIG_LRNG_CPU=y
+          # CONFIG_LRNG_SCHED is not set
+          CONFIG_LRNG_SELFTEST=y
+          # CONFIG_LRNG_SELFTEST_PANIC is not set
+          EOF
+          for KCFG in target/linux/generic/config-6.12 target/linux/rockchip/config-6.12 target/linux/rockchip/armv8/config-6.12; do
+            [ -f "$KCFG" ] || continue
+            sed -i -e 's/^CONFIG_CPU_IDLE_GOV_MENU=y$/CONFIG_CPU_IDLE_GOV_MENU=n/' \
+                   -e 's/^# CONFIG_CPU_IDLE_GOV_TEO is not set$/CONFIG_CPU_IDLE_GOV_TEO=y/' "$KCFG"
+            grep -qxF 'CONFIG_CPU_IDLE_GOV_TEO=y' "$KCFG" || echo 'CONFIG_CPU_IDLE_GOV_TEO=y' >> "$KCFG"
+          done
+          sed -i 's/Os/O2/g' include/target.mk
+          grep -q -- '-O2 -pipe' include/target.mk || { echo "错误: O2 优化未生效"; exit 1; }
+          grep -q 'nf_conntrack_tcp_max_retrans' package/kernel/linux/files/sysctl-nf-conntrack.conf || \
+            echo "net.netfilter.nf_conntrack_tcp_max_retrans=5" >> package/kernel/linux/files/sysctl-nf-conntrack.conf
+          sed -i 's,rootwait,rootwait mitigations=off,g' target/linux/rockchip/image/mmc.bootscript
+          grep -q 'mitigations=off' target/linux/rockchip/image/mmc.bootscript || { echo "错误: mitigations=off 未生效"; exit 1; }
+          echo "YAOF 兼容优化已应用"
       - name: 生成 OpenWrt 配置
         if: steps.check_release.outputs.skip != 'true'
         run: |
@@ -314,6 +347,8 @@ jobs:
           grep -qxF 'CONFIG_DEBUG_INFO_BTF=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_DEBUG_INFO_BTF=y"; exit 1; }
           grep -qxF 'CONFIG_NETKIT=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_NETKIT=y"; exit 1; }
           grep -qxF 'CONFIG_VETH=m' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_VETH=m"; exit 1; }
+          grep -qxF 'CONFIG_LRNG=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_LRNG=y"; exit 1; }
+          grep -qxF 'CONFIG_CPU_IDLE_GOV_TEO=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_CPU_IDLE_GOV_TEO=y"; exit 1; }
           echo "配置校验通过"
 
       - name: 恢复工具链缓存
