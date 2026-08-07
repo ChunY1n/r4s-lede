@@ -30,6 +30,9 @@ define Package/r4s-layout/description
   Also applies R4S defaults: LAN 192.168.15.1.
 endef
 
+define Build/Compile
+endef
+
 define Package/r4s-layout/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DATA) ./files/etc/config/fstab $(1)/etc/config/fstab
