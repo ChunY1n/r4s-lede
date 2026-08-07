@@ -1,0 +1,436 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/network.sh
+. /lib/mwan3/common.sh
+. /lib/mwan3/mwan3.sh
+
+INTERFACE=""
+DEVICE=""
+PING="/bin/ping"
+FAMILY="any"
+
+IFDOWN_EVENT=0
+TRACK_DIR=""
+
+stop_subprocs() {
+	local killpids
+
+	killpids="$(jobs -p)"
+	[ -n "$killpids" ] && kill $killpids 2>/dev/null
+}
+
+clean_up() {
+	LOG notice "Stopping mwan3track for interface \"${INTERFACE}\""
+	IFDOWN_EVENT=2
+	stop_subprocs
+	return 0
+}
+
+if_down() {
+	LOG info "Detect ifdown event on interface ${INTERFACE} (${DEVICE})"
+	IFDOWN_EVENT=1
+	stop_subprocs
+}
+
+validate_track_method() {
+	local family method
+	method="$1"
+	family="$2"
+	case "$method" in
+		ping)
+			if [ "$family" = "ipv4" ]; then
+				/usr/bin/ping -4 -W1 -c1 -q 127.0.0.1 >/dev/null 2>&1 && PING="/usr/bin/ping -4" && return 0
+				test -x /usr/bin/ping && PING="/usr/bin/ping" && return 0
+				test -x /bin/ping && PING="/bin/ping -4" && return 0
+			else
+				/usr/bin/ping -6 -W1 -c1 -q ::1 >/dev/null 2>&1 && PING="/usr/bin/ping -6" && return 0
+				test -x /usr/bin/ping6 && PING="/usr/bin/ping6" && return 0
+				test -x /bin/ping && PING="/bin/ping -6" && return 0
+			fi
+			LOG warn "Missing ping. Please enable BUSYBOX_DEFAULT_PING and recompile busybox or install iputils-ping package."
+			return 1
+			;;
+		arping)
+			[ "$family" = "ipv6" ] && {
+				LOG warn "arping does not support IPv6. Please use another track method."
+				return 1
+			}
+			command -v arping 1>/dev/null 2>&1 || {
+				LOG warn "Missing arping. Please install iputils-arping package."
+				return 1
+			}
+			;;
+		httping)
+			command -v httping 1>/dev/null 2>&1 || {
+				LOG warn "Missing httping. Please install httping package."
+				return 1
+			}
+			;;
+		nping-*)
+			command -v nping 1>/dev/null 2>&1 || {
+				LOG warn "Missing nping. Please install nping package."
+				return 1
+			}
+			;;
+		*)
+			LOG warn "Unsupported tracking method: $track_method"
+			return 2
+			;;
+	esac
+}
+
+validate_wrap() {
+	[ -x /lib/mwan3/libwrap_mwan3_sockopt.so.1.0 ] && return 0
+	LOG error "Missing libwrap_mwan3_sockopt. Please reinstall mwan3plus."
+	return 1
+}
+
+disconnected() {
+	local status
+
+	readfile status "$TRACK_DIR/STATUS" || status="notracking"
+
+	echo "offline" > "$TRACK_DIR/STATUS"
+	get_uptime > "$TRACK_DIR/OFFLINE"
+	echo "0" > "$TRACK_DIR/ONLINE"
+	score=0
+	[ "$1" = 1 ] && return
+
+	# Only execute disconnectd action if status was online or disconnecting
+	if [ "$status" = "online" ] || [ "$status" = "disconnecting" ]; then
+		LOG notice "Interface $INTERFACE($FAMILY) ($DEVICE) is offline"
+		env -i ACTION="disconnected" INTERFACE="$INTERFACE" DEVICE="$DEVICE" FAMILY="$FAMILY" /sbin/hotplug-call iface
+	else
+		LOG notice "Skip disconnected event for $INTERFACE($FAMILY) ($DEVICE)"
+	fi
+}
+
+connected() {
+	echo "online" > "$TRACK_DIR/STATUS"
+	echo "0" > "$TRACK_DIR/OFFLINE"
+	get_uptime > "$TRACK_DIR/ONLINE"
+	host_up_count=0
+	lost=0
+	turn=0
+	loss=0
+	[ "$1" = 1 ] && return
+	LOG notice "Interface $INTERFACE($FAMILY) ($DEVICE) is online"
+	env -i ACTION="connected" INTERFACE="$INTERFACE" DEVICE="$DEVICE" FAMILY="$FAMILY" /sbin/hotplug-call iface
+}
+
+disconnecting() {
+	echo "disconnecting" > "$TRACK_DIR/STATUS"
+	LOG notice "Interface $INTERFACE($FAMILY) ($DEVICE) is disconnecting"
+}
+
+connecting() {
+	echo "connecting" > "$TRACK_DIR/STATUS"
+	LOG notice "Interface $INTERFACE($FAMILY) ($DEVICE) is connecting"
+}
+
+firstconnect() {
+	if [ "$STATUS" = "offline" ]; then
+		disconnected 1
+	else
+		connected 1
+	fi
+}
+
+update_status() {
+	local track_ip=$1
+
+	echo "$1" > "$TRACK_DIR/TRACK_${track_ip}"
+	[ -z "$3" ] && return
+	echo "$3" > "$TRACK_DIR/LATENCY_${track_ip}"
+	echo "$4" > "$TRACK_DIR/LOSS_${track_ip}"
+}
+
+get_default_gateway() {
+	local _var family device route gateway
+
+	_var="$1"
+	family="$2"
+	device="$3"
+	if [ "$family" = "ipv4" ]; then
+		route="$(ip -4 route show default dev "$device" 2>/dev/null)"
+		gateway=255.255.255.255
+	else
+		route="$(ip -6 route show default dev "$device" 2>/dev/null)"
+		gateway=ffff::
+	fi
+
+	case " $route " in
+		*" via "*)
+			route=${route#* via }
+			gateway=${route%% *}
+		;;
+	esac
+
+	export "$_var=$gateway"
+}
+
+main() {
+	local reliability count timeout interval failure_interval
+	local recovery_interval down up size
+	local keep_failure_interval check_quality failure_latency
+	local recovery_latency failure_loss recovery_loss
+	local max_ttl httping_ssl
+
+	[ -z "$5" ] && echo "Error: should not be started manually" && return 0
+
+	family=$1
+	INTERFACE=$2
+	DEVICE=$3
+	STATUS=$4
+	FAMILY=$family
+	TRACK_DIR="$MWAN3TRACK_STATUS_DIR/$INTERFACE.$family"
+	mkdir -p "$TRACK_DIR"
+	trap clean_up TERM
+	trap if_down USR1
+
+	config_load mwan3
+	mwan3_init
+	config_get track_method $INTERFACE track_method ping
+	config_get_bool httping_ssl $INTERFACE httping_ssl 0
+	config_get reliability $INTERFACE reliability 1
+	config_get count $INTERFACE count 1
+	config_get timeout $INTERFACE timeout 4
+	config_get interval $INTERFACE interval 10
+	config_get down $INTERFACE down 5
+	config_get up $INTERFACE up 5
+	config_get size $INTERFACE size 56
+	config_get max_ttl $INTERFACE max_ttl 60
+	config_get failure_interval $INTERFACE failure_interval $interval
+	config_get_bool keep_failure_interval $INTERFACE keep_failure_interval 0
+	config_get recovery_interval $INTERFACE recovery_interval $interval
+	config_get_bool check_quality $INTERFACE check_quality 0
+	config_get failure_latency $INTERFACE failure_latency 1000
+	config_get recovery_latency $INTERFACE recovery_latency 500
+	config_get failure_loss $INTERFACE failure_loss 40
+	config_get recovery_loss $INTERFACE recovery_loss 10
+
+	local score=$((down+up))
+	local host_up_count=0
+	local lost=0
+	local turn=0
+	local sleep_time result ping_status ping_quality loss latency
+	local current_track_ips gateway_ip gateway_resolved
+	local SRC_IP TRACK_OUTPUT
+	shift 4
+	local track_ips="$*"
+
+	if [ "$family" = "ipv6" ]; then
+		mwan3_get_src_ip6 SRC_IP "$INTERFACE"
+	else
+		mwan3_get_src_ip SRC_IP "$INTERFACE"
+	fi
+	validate_track_method "$track_method" "$family" || {
+		LOG err "track method($track_method) src_ip($SRC_IP) invalid"
+		return 1
+	}
+	if [ "$track_method" != "ping" ] && [ "$check_quality" -eq 1 ]; then
+		LOG warn "check_quality is only supported with ping. Disabling quality checks for $track_method on interface $INTERFACE($family)."
+		check_quality=0
+	fi
+	validate_wrap || return 1
+
+	WRAP() {
+		# shellcheck disable=SC2048
+		DEVICE=$DEVICE SRCIP=$SRC_IP FWMARK=$MMX_MASK LD_PRELOAD=/lib/mwan3/libwrap_mwan3_sockopt.so.1.0 $*
+	}
+
+	TRACK_OUTPUT="$TRACK_DIR/TRACK_OUTPUT"
+	firstconnect
+	while true; do
+
+		sleep_time=$interval
+
+		current_track_ips=
+		gateway_ip=
+		gateway_resolved=0
+		for track_ip in $track_ips; do
+			if [ "$track_ip" = "gateway" ]; then
+				if [ "$gateway_resolved" -eq 0 ]; then
+					get_default_gateway gateway_ip "$family" "$DEVICE"
+					gateway_resolved=1
+				fi
+				current_track_ips="$current_track_ips $gateway_ip"
+			else
+				current_track_ips="$current_track_ips $track_ip"
+			fi
+		done
+
+		for track_ip in $current_track_ips; do
+			if [ $host_up_count -lt $reliability ]; then
+				case "$track_method" in
+					ping)
+						if [ $check_quality -eq 0 ]; then
+							WRAP $PING -n -c $count -W $timeout -s $size -t $max_ttl -q $track_ip &> /dev/null &
+							wait $!
+							result=$?
+						else
+							WRAP $PING -n -c $count -W $timeout -s $size -t $max_ttl -q $track_ip 2>/dev/null > "$TRACK_OUTPUT" &
+							wait $!
+							ping_status=$?
+							ping_quality="$(awk '
+								{ line[NR % 2] = $0; n = NR }
+								END {
+									loss = ""
+									latency = ""
+									start = n > 1 ? n - 1 : n
+									for (i = start; i <= n; i++) {
+										s = line[i % 2]
+										if (s ~ /% packet loss/) {
+											sub(/% packet loss.*$/, "", s)
+											sub(/^.*[^0-9]/, "", s)
+											loss = s
+										}
+										s = line[i % 2]
+										if (s ~ /(rtt|round-trip).* = /) {
+											sub(/^.*(rtt|round-trip).* = [^\/]*\//, "", s)
+											sub(/[^0-9].*$/, "", s)
+											latency = s
+										}
+									}
+									if (loss == "") loss = 100
+									if (latency == "") latency = 999999
+									print loss " " latency
+								}
+							' "$TRACK_OUTPUT")"
+							loss=${ping_quality%% *}
+							latency=${ping_quality#* }
+							[ -n "$loss" ] || loss=100
+							[ -n "$latency" ] || latency=999999
+							if [ "$ping_status" -ne 0 ] || [ "$loss" -eq 100 ]; then
+								latency=999999
+								loss=100
+							fi
+						fi
+					;;
+					arping)
+						WRAP arping -I $DEVICE -c $count -w $timeout -q $track_ip &> /dev/null &
+						wait $!
+						result=$?
+					;;
+					httping)
+						if [ "$httping_ssl" -eq 1 ]; then
+							WRAP httping -c $count -t $timeout -q "https://$track_ip" &> /dev/null &
+						else
+							WRAP httping -c $count -t $timeout -q "http://$track_ip" &> /dev/null &
+						fi
+						wait $!
+						result=$?
+					;;
+					nping-*)
+						WRAP nping -c $count $track_ip --${track_method#nping-} > "$TRACK_OUTPUT" &
+						wait $!
+						result=$(awk '/Lost/ {print $12; exit}' "$TRACK_OUTPUT")
+						result=${result:-1}
+					;;
+				esac
+				if [ $check_quality -eq 0 ]; then
+					if [ $result -eq 0 ]; then
+						host_up_count=$((host_up_count+1))
+						update_status "$track_ip" "up"
+
+						if [ $score -le $up ]; then
+							LOG info "Check ($track_method) success for target \"$track_ip\" on interface $INTERFACE($family) ($DEVICE). Current score: $score"
+						fi
+					else
+						lost=$((lost+1))
+						update_status "$track_ip" "down"
+
+						if [ $score -gt $up ]; then
+							LOG info "Check ($track_method) failed for target \"$track_ip\" on interface $INTERFACE($family) ($DEVICE). Current score: $score"
+						fi
+					fi
+				else
+					if [ "$loss" -ge "$failure_loss" ] || [ "$latency" -ge "$failure_latency" ]; then
+						lost=$((lost+1))
+						update_status "$track_ip" "down" $latency $loss
+
+						if [ $score -gt $up ]; then
+							LOG info "Check (${track_method}: latency=${latency}ms loss=${loss}%) failed for target \"$track_ip\" on interface $INTERFACE($family) ($DEVICE). Current score: $score"
+						fi
+					elif [ "$loss" -le "$recovery_loss" ] && [ "$latency" -le "$recovery_latency" ]; then
+						host_up_count=$((host_up_count+1))
+						update_status "$track_ip" "up" $latency $loss
+
+						if [ $score -le $up ]; then
+							LOG info "Check (${track_method}: latency=${latency}ms loss=${loss}%) success for target \"$track_ip\" on interface $INTERFACE($family) ($DEVICE). Current score: $score"
+						fi
+					else
+						echo "skipped" > "$TRACK_DIR/TRACK_${track_ip}"
+					fi
+				fi
+			else
+				echo "skipped" > "$TRACK_DIR/TRACK_${track_ip}"
+			fi
+		done
+
+		if [ $host_up_count -lt $reliability ]; then
+			score=$((score-1))
+
+			if [ $score -lt $up ]; then
+				score=0
+				[ ${keep_failure_interval} -eq 1 ] && {
+					sleep_time=$failure_interval
+				}
+			else
+				disconnecting
+				sleep_time=$failure_interval
+			fi
+
+			if [ $score -eq $up ]; then
+				disconnected
+				score=0
+			fi
+		else
+			if [ $score -lt $((down+up)) ] && [ $lost -gt 0 ]; then
+				connecting
+				LOG info "Lost $((lost*count)) ping(s) on interface $INTERFACE($family) ($DEVICE). Current score: $score"
+			fi
+
+			score=$((score+1))
+			lost=0
+
+			if [ $score -gt $up ]; then
+				echo "online" > "$TRACK_DIR/STATUS"
+				score=$((down+up))
+			elif [ $score -le $up ]; then
+				connecting
+				sleep_time=$recovery_interval
+			fi
+
+			if [ $score -eq $up ]; then
+				connected
+			fi
+		fi
+
+		turn=$((turn+1))
+		[ -d "$TRACK_DIR" ] || mkdir -p "$TRACK_DIR"
+		echo "${lost}" > "$TRACK_DIR/LOST"
+		echo "${score}" > "$TRACK_DIR/SCORE"
+		echo "${turn}" > "$TRACK_DIR/TURN"
+		get_uptime > "$TRACK_DIR/TIME"
+
+		host_up_count=0
+		sleep "${sleep_time}" &
+		wait $!
+
+		if [ "${IFDOWN_EVENT}" -eq 1 ]; then
+			LOG info "Register ifdown event on interface ${INTERFACE}($family) (${DEVICE})"
+			disconnected 1
+			IFDOWN_EVENT=0
+		elif [ "${IFDOWN_EVENT}" -eq 2 ]; then
+			LOG info "Tracker: exit by ifdown event on interface ${INTERFACE}($family) (${DEVICE})"
+			disconnected 1
+			IFDOWN_EVENT=0
+			break
+		fi
+	done
+	rm -f "$TRACK_OUTPUT"
+}
+
+main "$@"

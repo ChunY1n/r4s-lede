@@ -1,0 +1,5 @@
+*.img
+*.img.gz
+*.sha256
+firmware/
+.ccache/

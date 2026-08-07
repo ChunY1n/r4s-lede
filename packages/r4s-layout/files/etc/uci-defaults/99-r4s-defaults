@@ -1,0 +1,21 @@
+#!/bin/sh
+# R4S defaults: LAN = 192.168.15.1, hostname R4S, Asia/Shanghai
+uci set network.lan.ipaddr='192.168.15.1'
+uci set network.lan.netmask='255.255.255.0'
+uci commit network
+
+uci get system.@system[0] >/dev/null 2>&1 && {
+	uci set system.@system[0].hostname='R4S'
+	uci set system.@system[0].zonename='Asia/Shanghai'
+	uci set system.@system[0].timezone='CST-8'
+	uci commit system
+}
+
+# 让初始化向导默认显示 192.168.15.1（如果装入了 luci-app-wizard）
+uci get wizard.default >/dev/null 2>&1 && {
+	uci set wizard.default.lan_ipaddr='192.168.15.1'
+	uci set wizard.default.lan_netmask='255.255.255.0'
+	uci commit wizard
+}
+
+exit 0
