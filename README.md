@@ -12,7 +12,7 @@ NanoPi R4S DDR3 1GB 固件：以 [coolsnowwolf/lede](https://github.com/coolsnow
 - 向导：`luci-app-wizard`（初始化向导，含“关闭 IPv6”开关）
 - 分区：系统 rootfs **512MB** + 软件 overlay **1024MB**（首启自动创建，剩余空间为数据分区）
 - 后台：**http://192.168.15.1**
-- U-Boot：使用 ImmortalWrt 的 DDR3 兼容引导区（编译时自动替换）
+- U-Boot：lede 自带 `rk3399_ddr_800MHz_v1.30.bin`，原生支持 R4S DDR3 1GB，无需替换
 
 ## 使用
 

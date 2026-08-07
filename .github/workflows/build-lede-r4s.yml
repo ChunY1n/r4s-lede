@@ -43,7 +43,6 @@ jobs:
     env:
       LEDE_REF: ${{ github.event.inputs.lede_ref || 'master' }}
       DAE_VER: ${{ needs.check.outputs.dae_ver }}
-      IMMWRT_TAG: '25.12.1'
       CCACHE_DIR: ${{ github.workspace }}/lede/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_NOHASHDIR: 'true'
@@ -73,29 +72,6 @@ jobs:
           sudo -E apt-get -y autoremove --purge || true
           sudo -E apt-get clean
           df -h .
-
-      - name: 下载 immortalwrt R4S 预编译固件（提取 DDR3 兼容 U-Boot）
-        run: |
-          mkdir -p immwrt
-          cd immwrt
-          IMMWRT_URL="https://downloads.immortalwrt.org/releases/${IMMWRT_TAG}/targets/rockchip/armv8"
-          wget -q "$IMMWRT_URL/" -O index.html || exit 1
-          IMG_FILE=$(grep -oP 'immortalwrt-[^"]*friendlyarm_nanopi-r4s-squashfs-sysupgrade\.img\.gz' index.html | head -1)
-          if [ -z "$IMG_FILE" ]; then
-            IMG_FILE=$(grep -oP 'immortalwrt-[^"]*friendlyarm_nanopi-r4s-enterprise-squashfs-sysupgrade\.img\.gz' index.html | head -1)
-          fi
-          [ -n "$IMG_FILE" ] || { echo "未找到 R4S 镜像"; grep -oP 'immortalwrt-[^"]*\.img\.gz' index.html | head -20; exit 1; }
-          echo "下载: $IMG_FILE"
-          wget -q "$IMMWRT_URL/$IMG_FILE" -O immwrt-r4s.img.gz
-          rc=0
-          gzip -dc immwrt-r4s.img.gz > immwrt-r4s.img || rc=$?
-          if [ "${rc:-0}" -ne 0 ] && [ "${rc:-0}" -ne 2 ]; then
-            echo "解压失败 (gzip rc=${rc})"; exit 1
-          fi
-          rm -f immwrt-r4s.img.gz
-          ls -lh immwrt-r4s.img
-          dd if=immwrt-r4s.img bs=512 skip=16384 count=1 2>/dev/null | head -c 8 | grep -q 'LOADER  ' || { echo "布局校验失败: uboot.img"; exit 1; }
-          dd if=immwrt-r4s.img bs=512 skip=24576 count=1 2>/dev/null | head -c 4 | grep -q 'BL3X' || { echo "布局校验失败: trust.bin"; exit 1; }
 
       - name: 克隆 lede 源码
         run: |
@@ -322,7 +298,7 @@ jobs:
           done
           echo "内核配置验证通过"
 
-      - name: 替换 DDR3 U-Boot
+      - name: 收集固件镜像
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
@@ -347,11 +323,9 @@ jobs:
               rm -f "$IMG"
               IMG="${IMG%.gz}"
             fi
-            OUT_IMG="${IMG%.img}-ddr3.img"
-            echo "处理: $IMG -> $OUT_IMG"
-            bash ../scripts/replace-uboot.sh "$IMG" ../immwrt/immwrt-r4s.img "$OUT_IMG"
-            echo "$(pwd)/$OUT_IMG" >> ../firmware_paths.txt
+            echo "$(pwd)/$IMG" >> ../firmware_paths.txt
           done
+          cat ../firmware_paths.txt
 
       - name: 校验镜像分区（rootfs = 512MiB）
         if: steps.check_release.outputs.skip != 'true'
@@ -400,7 +374,7 @@ jobs:
             echo ''
             echo "lede  : $LEDE_SHA"
             echo "dae   : $DAE_VER"
-            echo "U-Boot: immortalwrt $IMMWRT_TAG (DDR3 兼容)"
+            echo "U-Boot: lede 自带 rk3399_ddr_800MHz_v1.30.bin（原生支持 DDR3 1GB）"
             echo "Built : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ''
             echo 'Includes'
@@ -439,7 +413,7 @@ jobs:
             gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "Lede R4S DDR3 1GB Firmware (dae/daed + xwan) $LEDE_SHA" \
-              --notes "lede=$LEDE_SHA · dae=$DAE_VER · U-Boot immortalwrt $IMMWRT_TAG" \
+              --notes "lede=$LEDE_SHA · dae=$DAE_VER · U-Boot lede 原生 DDR3" \
               *.img.gz *.sha256 README.txt || true
           fi
           gh release upload "$RELEASE_TAG" *.img.gz *.sha256 README.txt \
