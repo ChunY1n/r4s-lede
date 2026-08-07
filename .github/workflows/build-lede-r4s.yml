@@ -183,6 +183,8 @@ jobs:
           CONFIG_TARGET_rockchip_armv8=y
           CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r4s=y
           CONFIG_TARGET_ROOTFS_PARTSIZE=512
+          CONFIG_TARGET_ROOTFS_SQUASHFS=y
+          CONFIG_TARGET_ROOTFS_EXT4FS=y
 
           CONFIG_PACKAGE_luci-app-xwan=y
           CONFIG_PACKAGE_mwan3plus=y
@@ -232,6 +234,8 @@ jobs:
           for key in \
               'CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r4s=y' \
               'CONFIG_TARGET_ROOTFS_PARTSIZE=512' \
+              'CONFIG_TARGET_ROOTFS_SQUASHFS=y' \
+              'CONFIG_TARGET_ROOTFS_EXT4FS=y' \
               'CONFIG_KERNEL_DEBUG_INFO=y' \
               'CONFIG_KERNEL_DEBUG_INFO_BTF=y' \
               'CONFIG_KERNEL_BPF_EVENTS=y' \
@@ -253,6 +257,7 @@ jobs:
             grep -qxF "$key" .config || { echo "错误: 缺少 $key"; exit 1; }
           done
           grep -qxF 'CONFIG_BPF_TOOLCHAIN_HOST=y' .config || { echo "错误: BPF 工具链未使用系统 clang (BPF_TOOLCHAIN_HOST)"; exit 1; }
+          grep -qE '^CONFIG_FEED_daede(=y|=m)$' .config && { echo "错误: CONFIG_FEED_daede 仍启用，distfeeds 会生成死链"; exit 1; }
           grep -qxF '# CONFIG_KERNEL_DEBUG_INFO_REDUCED is not set' .config || { echo "错误: DEBUG_INFO_REDUCED 未关闭"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_kselftests-bpf=y' .config && { echo "错误: kselftests-bpf 被选中（BTF 自动勾选）"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_fw4=y|^CONFIG_PACKAGE_nftables=y' .config && { echo "错误: fw4/nftables 被选中，违背单防火墙原则"; exit 1; }
@@ -261,6 +266,26 @@ jobs:
           grep -qxF 'CONFIG_NETKIT=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_NETKIT=y"; exit 1; }
           grep -qxF 'CONFIG_VETH=m' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_VETH=m"; exit 1; }
           echo "配置校验通过"
+
+      - name: 恢复工具链缓存
+        if: steps.check_release.outputs.skip != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            lede/staging_dir/toolchain-*
+            lede/staging_dir/host
+          key: lede-toolchain-v1-${{ env.LEDE_SHA }}-rockchip-armv8
+          restore-keys: |
+            lede-toolchain-v1-
+
+      - name: 恢复 ccache
+        if: steps.check_release.outputs.skip != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: lede/.ccache
+          key: lede-ccache-v1-${{ env.LEDE_SHA }}-rockchip-armv8
+          restore-keys: |
+            lede-ccache-v1-
 
       - name: 编译固件
         if: steps.check_release.outputs.skip != 'true'
@@ -300,6 +325,24 @@ jobs:
             grep -qxF "$key" "$KCFG" || { echo "错误: 内核缺少 $key"; exit 1; }
           done
           echo "内核配置验证通过"
+
+      - name: 保存工具链缓存
+        if: steps.check_release.outputs.skip != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            lede/staging_dir/toolchain-*
+            lede/staging_dir/host
+          key: lede-toolchain-v1-${{ env.LEDE_SHA }}-rockchip-armv8
+
+      - name: 保存 ccache
+        if: steps.check_release.outputs.skip != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: lede/.ccache
+          key: lede-ccache-v1-${{ env.LEDE_SHA }}-rockchip-armv8
 
       - name: 收集固件镜像
         if: steps.check_release.outputs.skip != 'true'
