@@ -270,7 +270,7 @@ jobs:
           grep -qxF '# CONFIG_KERNEL_DEBUG_INFO_REDUCED is not set' .config || { echo "错误: DEBUG_INFO_REDUCED 未关闭"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_kselftests-bpf=y' .config && { echo "错误: kselftests-bpf 被选中（BTF 自动勾选）"; exit 1; }
           grep -qE '^CONFIG_PACKAGE_fw4=y|^CONFIG_PACKAGE_nftables=y' .config && { echo "错误: fw4/nftables 被选中，违背单防火墙原则"; exit 1; }
-          grep -E 'luci-app-(turboacc|ssr-plus)' .config && { echo "错误: turboacc/ssr-plus 仍在配置中"; exit 1; }
+          grep -qE '^CONFIG_PACKAGE_luci-app-(turboacc|ssr-plus)=[ym]' .config && { echo "错误: turboacc/ssr-plus 仍被选中"; exit 1; }
           grep -qxF 'CONFIG_BPF_SYSCALL=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_BPF_SYSCALL=y"; exit 1; }
           grep -qxF 'CONFIG_DEBUG_INFO_BTF=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_DEBUG_INFO_BTF=y"; exit 1; }
           grep -qxF 'CONFIG_NETKIT=y' target/linux/generic/config-6.12 || { echo "错误: 内核配置文件缺少 CONFIG_NETKIT=y"; exit 1; }
