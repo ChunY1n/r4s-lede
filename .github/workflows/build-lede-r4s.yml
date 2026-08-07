@@ -267,6 +267,7 @@ jobs:
         run: |
           cd lede
           cp ../build.sh .
+          chmod +x build.sh
           ./build.sh "$(nproc)"
 
       - name: 验证内核 BTF/BPF 实际生效
