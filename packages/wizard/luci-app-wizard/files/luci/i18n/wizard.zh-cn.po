@@ -118,11 +118,11 @@ msgstr "WireGuard (wireguard)"
 msgid "WireGuard VPN encrypted tunnel driver. If you do not use WireGuard, disable it to save memory."
 msgstr "WireGuard VPN 密钥路由加密隧道驱动。如果不使用 WireGuard，关闭可精简内存。"
 
-msgid "OpenVPN & TUN (ovpn, tun)"
-msgstr "OpenVPN & TUN (ovpn, tun)"
+msgid "TUN / TAP (tun)"
+msgstr "TUN / TAP 虚拟网卡 (tun)"
 
-msgid "OpenVPN kernel acceleration module (ovpn) and TUN/TAP virtual network device driver."
-msgstr "OpenVPN 数据包内核加速模块 (ovpn) 与 TUN/TAP 虚拟网卡驱动。"
+msgid "TUN/TAP virtual network device driver. The OpenVPN kernel offload module (ovpn) is not available in this firmware kernel."
+msgstr "TUN/TAP 虚拟网卡驱动。本固件内核未提供 OpenVPN 内核加速模块 (ovpn)。"
 
 msgid "GRE & SIT Tunnels (ip_gre, ip6_gre, sit)"
 msgstr "GRE & SIT 协议隧道 (ip_gre, ip6_gre, sit)"

@@ -209,6 +209,30 @@ jobs:
           CONFIG_PACKAGE_kmod-veth=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           CONFIG_PACKAGE_kmod-macvlan=y
+          CONFIG_PACKAGE_kmod-wireguard=y
+          CONFIG_PACKAGE_luci-proto-wireguard=y
+          CONFIG_PACKAGE_wireguard-tools=y
+          CONFIG_PACKAGE_kmod-cryptodev=y
+          CONFIG_PACKAGE_kmod-crypto-user=y
+          CONFIG_PACKAGE_kmod-usb-net=y
+          CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+          CONFIG_PACKAGE_r8152-firmware=y
+          CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+          CONFIG_PACKAGE_kmod-usb-net-rndis=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-mbim=y
+          CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+          CONFIG_PACKAGE_kmod-usb-net-huawei-cdc-ncm=y
+          CONFIG_PACKAGE_kmod-usb-net-ipheth=y
+          CONFIG_PACKAGE_kmod-usb3=y
+          CONFIG_PACKAGE_kmod-usb-xhci-hcd=y
+          CONFIG_PACKAGE_kmod-usb-storage=y
+          CONFIG_PACKAGE_kmod-usb-serial=y
+          CONFIG_PACKAGE_kmod-usb-serial-option=y
+          CONFIG_PACKAGE_kmod-usb-serial-pl2303=y
+          CONFIG_PACKAGE_kmod-usb-serial-cp210x=y
+          CONFIG_PACKAGE_usb-modeswitch=y
           CONFIG_PACKAGE_v2ray-geoip=y
           CONFIG_PACKAGE_v2ray-geosite=y
           CONFIG_PACKAGE_ca-bundle=y
@@ -262,7 +286,22 @@ jobs:
               'CONFIG_PACKAGE_r4s-layout=y' \
               'CONFIG_PACKAGE_luci-app-daede=y' \
               'CONFIG_PACKAGE_dae=y' \
-              'CONFIG_PACKAGE_daed=y'; do
+              'CONFIG_PACKAGE_daed=y' \
+              'CONFIG_PACKAGE_kmod-wireguard=y' \
+              'CONFIG_PACKAGE_luci-proto-wireguard=y' \
+              'CONFIG_PACKAGE_wireguard-tools=y' \
+              'CONFIG_PACKAGE_kmod-cryptodev=y' \
+              'CONFIG_PACKAGE_kmod-crypto-user=y' \
+              'CONFIG_PACKAGE_kmod-usb-net-rtl8152=y' \
+              'CONFIG_PACKAGE_r8152-firmware=y' \
+              'CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y' \
+              'CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y' \
+              'CONFIG_PACKAGE_kmod-usb-net-rndis=y' \
+              'CONFIG_PACKAGE_kmod-usb-storage=y' \
+              'CONFIG_PACKAGE_kmod-usb-serial=y' \
+              'CONFIG_PACKAGE_kmod-usb3=y' \
+              'CONFIG_PACKAGE_kmod-usb-xhci-hcd=y' \
+              'CONFIG_PACKAGE_usb-modeswitch=y'; do
             grep -qxF "$key" .config || { echo "错误: 缺少 $key"; exit 1; }
           done
           grep -qxF 'CONFIG_BPF_TOOLCHAIN_HOST=y' .config || { echo "错误: BPF 工具链未使用系统 clang (BPF_TOOLCHAIN_HOST)"; exit 1; }
@@ -437,7 +476,10 @@ jobs:
             echo '--------'
             echo '- luci-app-xwan + mwan3plus（iptables 单线多拨）'
             echo '- dae / daed / luci-app-daede（内核 BTF + netkit）'
-            echo '- luci-app-wizard（初始化向导，含关闭 IPv6 开关）'
+            echo '- luci-app-wizard（初始化向导，仅保留有效选项：上网/LAN/IPv6/可选内核模块）'
+            echo '- USB 网卡驱动：RTL8152/8153、AX88179、CDC、RNDIS、4G 模块'
+            echo '- WireGuard（内核 + LuCI 协议 + 工具）'
+            echo '- Cryptodev & AF_ALG'
             echo '- 分区：系统 rootfs 512MB + 软件 overlay 1024MB（首启自动创建）'
             echo '- 后台地址：http://192.168.15.1'
             echo '- 防火墙：仅 iptables/fw3，无 nftables/fw4'

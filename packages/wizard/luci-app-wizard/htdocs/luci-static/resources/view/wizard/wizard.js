@@ -44,15 +44,6 @@ return view.extend({
 				netmask: octets.join('.')
 			};
 		};
-		var serviceOption = function(name, title, defaultValue, alt) {
-			var opt = s.taboption('service', form.ListValue, name, title, alt);
-			opt.default = defaultValue || '0';
-			opt.rmempty = false;
-			opt.widget = 'radio';
-			opt.value('1', _('Enable'));
-			opt.value('0', _('Disable'));
-			return opt;
-		};
 		var kmodOption = function(name, title, defaultValue, description) {
 			var opt = s.taboption('kmods', form.ListValue, name, title, description);
 			opt.default = defaultValue || '1';
@@ -68,7 +59,7 @@ return view.extend({
 		}
 
 		m = new form.Map('wizard', [_('Router Setup Wizard')],
-			_('Configure the basic Internet, Wi-Fi, local network, optional service, and kernel module settings for this router.'));
+			_('Configure the basic Internet, local network, IPv6 and optional kernel module settings for this router.'));
 
 		s = m.section(form.NamedSection, 'default', 'wizard');
 		s.addremove = false;
@@ -76,10 +67,7 @@ return view.extend({
 		if (has_wifi) {
 			s.tab('wifisetup', _('Wi-Fi Settings'), _('Set the Wi-Fi network name and password. For advanced options, go to Network > Wireless.'));
 		}
-		s.tab('lansetup', _('Local Network'));
-
-		s.tab('service', _('Optional Services'), _('Turn off unused services to reduce memory usage.'));
-		s.tab('kmods', _('Kernel Modules'), _('Select kernel modules to enable or disable to optimize memory usage. Disabled modules will be removed from the filesystem, while enabled ones will be restored from /rom/. Note: Modifying these options requires restarting the device to take effect.'));
+		s.tab('kmods', _('Kernel Modules'), _('Optional kernel modules that can be enabled or disabled. Modules required by dae and xwan are not shown here and cannot be removed.'));
 
 		o = s.taboption('wansetup', form.ListValue, 'wan_proto', _('Connection type'));
 		o.rmempty = false;
@@ -123,7 +111,7 @@ return view.extend({
 			o.password = true;
 		}
 
-		o = s.taboption('lansetup', form.Value, 'lan_ipaddr', _('IPv4 address'));
+		o = s.taboption('wansetup', form.Value, 'lan_ipaddr', _('LAN IPv4 address'));
 		o.datatype = 'ip4addr';
 		o.cfgvalue = function(section_id) {
 			var value = uci.get('wizard', section_id, 'lan_ipaddr');
@@ -132,7 +120,7 @@ return view.extend({
 			return cidr ? cidr.addr : value;
 		};
 
-		o = s.taboption('lansetup', form.Value, 'lan_netmask', _('IPv4 subnet mask'));
+		o = s.taboption('wansetup', form.Value, 'lan_netmask', _('LAN IPv4 subnet mask'));
 		o.datatype = 'ip4addr';
 		o.value('255.255.255.0');
 		o.value('255.255.0.0');
@@ -143,22 +131,18 @@ return view.extend({
 			return cidr ? cidr.netmask : uci.get('wizard', section_id, 'lan_netmask');
 		};
 
-		serviceOption('urllogger', _("Status") + ' -> ' + _('URL logging'), '0');
-		serviceOption('qos', _("Network") + ' -> ' + _('Traffic Shaping'), '0');
-		serviceOption('miniupnpd', _("Services") + ' -> ' + _('UPnP IGD & PCP'), '0');
-		serviceOption('ipv6', _('IPv6'), '1', _('If disabled, IPv6 services will not be provided on the local network.'));
-		serviceOption('umdns', _('mDNS'), '1', _('It is recommended not to disable this service if using FakeMesh.'));
-		serviceOption('switch_ports_status', _('Switch Port Status'), '0', _('This service can usually be disabled. If disabled, it will not respond to switch port hotplug events.'));
+		o = s.taboption('wansetup', form.ListValue, 'ipv6', _('IPv6'), _('If disabled, IPv6 services will not be provided on the local network.'));
+		o.default = '1';
+		o.rmempty = false;
+		o.widget = 'radio';
+		o.value('1', _('Enable'));
+		o.value('0', _('Disable'));
 
 		kmodOption('kmod_wireguard', _('WireGuard (wireguard)'), '1', _('WireGuard VPN encrypted tunnel driver. If you do not use WireGuard, disable it to save memory.'));
-		kmodOption('kmod_openvpn_tun', _('OpenVPN & TUN (ovpn, tun)'), '1', _('OpenVPN kernel acceleration module (ovpn) and TUN/TAP virtual network device driver.'));
-		kmodOption('kmod_gre_sit', _('GRE & SIT Tunnels (ip_gre, ip6_gre, sit)'), '1', _('GRE cross-network packet encapsulation and IPv6-in-IPv4 (SIT) protocol tunnel drivers.'));
-		kmodOption('kmod_vlan', _('IPVLAN & MACVLAN (ipvlan, macvlan)'), '1', _('IPVLAN and MACVLAN virtual network interface drivers, commonly used for multi-WAN or container networking.'));
-		kmodOption('kmod_qos', _('QoS & Traffic Control (sch_cake, sch_htb, cls_*)'), '1', _('CAKE / HTB traffic shaping queue disciplines and TC packet classifiers. Can be disabled if traffic shaping is not needed.'));
+		kmodOption('kmod_openvpn_tun', _('TUN / TAP (tun)'), '1', _('TUN/TAP virtual network device driver. The OpenVPN kernel offload module (ovpn) is not available in this firmware kernel.'));
 		kmodOption('kmod_alg', _('NAT Helpers / ALG (sip, h323, pptp, ftp, etc.)'), '1', _('Application Layer Gateway (ALG) NAT helpers for legacy protocols such as SIP, H.323, PPTP, FTP, TFTP.'));
 		kmodOption('kmod_crypto', _('Cryptodev & AF_ALG (cryptodev, algif_*)'), '1', _('User-space hardware crypto engine (/dev/crypto) and AF_ALG socket crypto interfaces.'));
 		kmodOption('kmod_usb', _('USB Core Driver (usbcore, usb-common)'), '1', _('USB core bus driver stack. Can be disabled if the router has no USB ports or no USB devices.'));
-		kmodOption('kmod_ppp', _('PPPoE & PPTP Dialers (pppoe, pptp, ppp_generic)'), '1', _('PPPoE broadband dialer and PPTP protocol drivers. Can be disabled if using static IP or DHCP WAN.'));
 
 		return m.render();
 	}
