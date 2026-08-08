@@ -24,4 +24,10 @@ uci -q get rpcd.@rpcd[0].timeout >/dev/null 2>&1 && {
 	uci commit rpcd
 }
 
+# LuCI 防火墙页面默认显示 BBR（实际内核已由 90-tcp-bbr.conf 设置为 bbr）
+uci -q get firewall.@defaults[0] >/dev/null 2>&1 && {
+	uci set firewall.@defaults[0].tcpcca='bbr'
+	uci commit firewall
+}
+
 exit 0
