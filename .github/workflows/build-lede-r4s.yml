@@ -162,6 +162,16 @@ jobs:
           grep -q 'empty := "global {' package/feeds/daede/daed/patches/*.patch || { echo "错误: daed 补丁缺失"; exit 1; }
           echo "daed updateConfig 补丁已就位"
 
+      - name: 补丁 daede-graphql 转发（IPv6 关闭时 uclient-fetch 强制 IPv4）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          F=package/feeds/daede/luci-app-daede/root/www/cgi-bin/daede-graphql
+          [ -f "$F" ] || { echo "错误: 未找到 $F"; exit 1; }
+          sed -i 's/uclient-fetch -q -O -/uclient-fetch -4 -q -O -/g' "$F"
+          grep -q 'uclient-fetch -4' "$F" || { echo "错误: daede-graphql 补丁未生效"; exit 1; }
+          echo "daede-graphql IPv4 补丁已就位"
+
       - name: 打开内核 BPF/BTF（dae/daed 必需）
         if: steps.check_release.outputs.skip != 'true'
         run: |
