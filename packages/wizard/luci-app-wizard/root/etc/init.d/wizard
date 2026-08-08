@@ -150,6 +150,20 @@ add_wizard() {
 				/etc/init.d/firewall reload >/dev/null 2>&1
 			fi
 		fi
+		# 同步关闭 mwan3 的 IPv6 追踪，避免无 IPv6 时追踪器空转刷日志
+		if [ -f /etc/config/mwan3 ]; then
+			local _mi _mt
+			for _mi in $(uci show mwan3 2>/dev/null | sed -n "s/^mwan3\.\([^.]*\)=interface$/\1/p"); do
+				uci -q set mwan3.$_mi.family='ipv4'
+				for _mt in $(uci -q get mwan3.$_mi.track_ip 2>/dev/null); do
+					case "$_mt" in
+						*:*) uci -q del_list mwan3.$_mi.track_ip="$_mt" ;;
+					esac
+				done
+			done
+			uci commit mwan3
+			/etc/init.d/mwan3 restart >/dev/null 2>&1
+		fi
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
 	fi
 	uci commit dhcp
