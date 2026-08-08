@@ -112,6 +112,7 @@ add_wizard() {
 		uci -q delete network.lan6
 		uci -q set network.wan.ipv6='auto'
 		uci -q delete network.wan6.auto
+		uci -q set dhcp.@dnsmasq[0].filter_aaaa='0'
 	else
 		# 关闭 IPv6：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6
 		uci -q get dhcp.lan.interface >/dev/null && {
@@ -127,6 +128,7 @@ add_wizard() {
 		uci -q delete network.lan6
 		uci -q set network.wan.ipv6='0'
 		uci -q get network.wan6 >/dev/null && uci set network.wan6.auto='0'
+		uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
 	fi
 	uci commit dhcp
 	uci commit network
