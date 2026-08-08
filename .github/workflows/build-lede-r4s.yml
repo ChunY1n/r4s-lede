@@ -218,8 +218,11 @@ jobs:
           cp -f ../yaof-patches/hack-6.12/*.patch ./target/linux/generic/hack-6.12/
           cp -f ../yaof-patches/hack-6.12/lrng/*.patch ./target/linux/generic/hack-6.12/
           cp -f ../yaof-patches/pending-6.12/*.patch ./target/linux/generic/pending-6.12/
+          # BBRv3（来自 QiuSimons/YAOF 25.12，backport-6.12）
+          cp -f ../yaof-patches/backport-6.12/bbr3/*.patch ./target/linux/generic/backport-6.12/
           [ -f target/linux/generic/hack-6.12/696-v60-0001-LRNG-Entropy-Source-and-DRNG-Manager.patch ] || { echo "错误: LRNG 补丁缺失"; exit 1; }
           [ -f target/linux/generic/hack-6.12/950-wireguard-support-hotplug.patch ] || { echo "错误: WireGuard hotplug 补丁缺失"; exit 1; }
+          [ -f target/linux/generic/backport-6.12/010-0016-net-tcp_bbr-v3-update-TCP-bbr-congestion-control-mod.patch ] || { echo "错误: BBRv3 补丁缺失"; exit 1; }
           cat >> target/linux/generic/config-6.12 <<'EOF'
           # CONFIG_RANDOM_DEFAULT_IMPL is not set
           CONFIG_LRNG=y
@@ -270,6 +273,7 @@ jobs:
           CONFIG_PACKAGE_kmod-veth=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           CONFIG_PACKAGE_kmod-macvlan=y
+          CONFIG_PACKAGE_kmod-tcp-bbr=y
           CONFIG_PACKAGE_kmod-mac80211=y
           CONFIG_PACKAGE_kmod-mt7601u=y
           CONFIG_PACKAGE_kmod-wireguard=y
@@ -366,7 +370,8 @@ jobs:
               'CONFIG_PACKAGE_kmod-usb-serial=y' \
               'CONFIG_PACKAGE_kmod-usb3=y' \
               'CONFIG_PACKAGE_kmod-usb-xhci-hcd=y' \
-              'CONFIG_PACKAGE_usb-modeswitch=y'; do
+              'CONFIG_PACKAGE_usb-modeswitch=y' \
+              'CONFIG_PACKAGE_kmod-tcp-bbr=y'; do
             grep -qxF "$key" .config || { echo "错误: 缺少 $key"; exit 1; }
           done
           grep -qxF 'CONFIG_BPF_TOOLCHAIN_HOST=y' .config || { echo "错误: BPF 工具链未使用系统 clang (BPF_TOOLCHAIN_HOST)"; exit 1; }
@@ -440,11 +445,13 @@ jobs:
               'CONFIG_XDP_SOCKETS_DIAG=m'; do
             grep -qxF "$key" "$KCFG" || { echo "错误: 内核缺少 $key"; exit 1; }
           done
+          grep -qE '^CONFIG_TCP_CONG_BBR=(y|m)$' "$KCFG" || { echo "错误: 内核缺少 TCP_CONG_BBR (BBRv3)"; exit 1; }
           echo "内核配置验证通过"
           echo "=== daede 核心版本验证 ==="
           MF=$(find bin/targets/rockchip/armv8 -name '*.manifest' 2>/dev/null | head -1)
           [ -n "$MF" ] || { echo "错误: 未找到固件 manifest"; exit 1; }
           grep -E '^(dae|daed) - 2026\.' "$MF" || { echo "错误: 固件未包含 kenzok8 新版 dae/daed"; exit 1; }
+          grep -qE '^kmod-tcp-bbr - ' "$MF" || { echo "错误: 固件未包含 kmod-tcp-bbr (BBRv3)"; exit 1; }
           echo "daede 核心版本验证通过"
 
       - name: 保存工具链缓存

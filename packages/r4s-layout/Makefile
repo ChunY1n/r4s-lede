@@ -44,6 +44,8 @@ define Package/r4s-layout/install
 	$(INSTALL_BIN) ./files/usr/sbin/diskv $(1)/usr/sbin/diskv
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/etc/uci-defaults/99-r4s-defaults $(1)/etc/uci-defaults/99-r4s-defaults
+	$(INSTALL_DIR) $(1)/etc/sysctl.d
+	$(INSTALL_DATA) ./files/etc/sysctl.d/90-tcp-bbr.conf $(1)/etc/sysctl.d/90-tcp-bbr.conf
 endef
 
 $(eval $(call BuildPackage,r4s-layout))
