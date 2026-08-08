@@ -252,6 +252,8 @@ EOF
 	if [ "x$XBOOT" != "x1" ]; then
 		/etc/init.d/dnsmasq restart >/dev/null 2>&1
 	fi
+	# 联动 daed DNS：IPv6 开关变化时自动应用/还原 AAAA 与节点解析定制
+	[ -x /usr/bin/dae-ipv6-dns.sh ] && /usr/bin/dae-ipv6-dns.sh
 
 	if [ "x$XBOOT" != "x1" ]; then
 		local wan_proto wan_ipaddr wan_netmask wan_gateway wan_dns wan_pppoe_user wan_pppoe_pass

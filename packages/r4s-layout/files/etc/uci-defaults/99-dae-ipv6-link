@@ -1,0 +1,16 @@
+#!/bin/sh
+# daede IPv6 关闭联动：daed 启动钩子 + 每 3 分钟兜底定时
+[ -f /etc/init.d/daed ] || exit 0
+[ -x /usr/bin/dae-ipv6-dns.sh ] || exit 0
+
+# 1) daed 启动时立即应用/还原（service_started 钩子）
+if ! grep -q 'dae-ipv6-dns' /etc/init.d/daed; then
+	awk '/^service_triggers\(\) \{/ && !done { print "service_started() {"; print "\t[ -x /usr/bin/dae-ipv6-dns.sh ] && /usr/bin/dae-ipv6-dns.sh start"; print "}"; print ""; done=1 } { print }' /etc/init.d/daed > /tmp/daed.init.new && cp /tmp/daed.init.new /etc/init.d/daed && chmod 755 /etc/init.d/daed
+fi
+
+# 2) 每 3 分钟兜底检查（核心启停、IPv6 状态变化都覆盖）
+if [ -f /etc/crontabs/root ]; then
+	grep -q 'dae-ipv6-dns' /etc/crontabs/root || echo '*/3 * * * * /usr/bin/dae-ipv6-dns.sh >/dev/null 2>&1' >> /etc/crontabs/root
+fi
+
+exit 0
