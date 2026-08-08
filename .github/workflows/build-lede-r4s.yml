@@ -247,18 +247,13 @@ jobs:
           sed -i 's,rootwait,rootwait mitigations=off,g' target/linux/rockchip/image/mmc.bootscript
           grep -q 'mitigations=off' target/linux/rockchip/image/mmc.bootscript || { echo "错误: mitigations=off 未生效"; exit 1; }
           echo "YAOF 兼容优化已应用"
-      - name: 应用 YAOF 包级补丁（odhcp6c hotplug / miniupnpd force_forwarding）
+      - name: 应用 YAOF 包级补丁（odhcp6c DHCPv6 hotplug）
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
           patch -p1 < ../yaof-patches/pkgs/odhcp6c/1002-odhcp6c-support-dhcpv6-hotplug.patch
           grep -q 'hotplug-call dhcpv6' package/network/ipv6/odhcp6c/files/dhcpv6.script || { echo "错误: odhcp6c hotplug 未生效"; exit 1; }
-          pushd feeds/packages
-          patch -p1 < ../../../yaof-patches/pkgs/miniupnpd/01-set-presentation_url.patch
-          patch -p1 < ../../../yaof-patches/pkgs/miniupnpd/02-force_forwarding.patch
-          grep -q 'ext_allow_private_ipv4' net/miniupnpd-iptables/files/miniupnpd.init || { echo "错误: miniupnpd force_forwarding 未生效"; exit 1; }
-          popd
-          echo "odhcp6c / miniupnpd 补丁已应用"
+          echo "odhcp6c 补丁已应用"
       - name: 放宽 LuCI/rpcd 超时（30s→60s）
         if: steps.check_release.outputs.skip != 'true'
         run: |
