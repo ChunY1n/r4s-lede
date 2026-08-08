@@ -112,10 +112,14 @@ add_wizard() {
 			uci set dhcp.lan.ra_slaac='0'
 		}
 		uci -q delete network.lan.ip6assign
-		uci -q get network.wan6.interface >/dev/null && uci set network.wan6.auto='0'
+		uci -q get network.wan6 >/dev/null && uci set network.wan6.auto='0'
 	fi
 	uci commit dhcp
 	uci commit network
+	# dnsmasq 需要重启才会重新生成配置文件，否则 RA/DHCPv6 开关不生效
+	if [ "x$XBOOT" != "x1" ]; then
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+	fi
 
 	if [ "x$XBOOT" != "x1" ]; then
 		local wan_proto wan_ipaddr wan_netmask wan_gateway wan_dns wan_pppoe_user wan_pppoe_pass
