@@ -125,6 +125,7 @@ add_wizard() {
 		uci -q delete network.lan.delegate
 		uci -q delete network.lan.ip6class
 		uci -q delete network.lan.ip6assign
+		uci -q set network.lan6=interface
 		uci -q set network.lan6.auto='0'
 		uci -q set network.wan.ipv6='0'
 		uci -q get network.wan6 >/dev/null && uci set network.wan6.auto='0'
@@ -221,14 +222,18 @@ add_wizard() {
 				uci set network.wan.proto='pppoe'
 				test -n "$device" && uci set network.wan.device="$device"
 				test -n "$ifname" && uci set network.wan.ifname="$ifname"
-				uci set network.wan.metric='40'
-				uci set network.wan.username="${wan_pppoe_user}"
-				uci set network.wan.password="${wan_pppoe_pass}"
-				uci set network.wan.keepalive='5 5'
-				uci set network.wan.mtu='1492'
+			uci set network.wan.metric='40'
+			uci set network.wan.username="${wan_pppoe_user}"
+			uci set network.wan.password="${wan_pppoe_pass}"
+			uci set network.wan.keepalive='5 5'
+			uci set network.wan.mtu='1492'
+			if [ "$opt" = "1" ]; then
 				uci set network.wan.ipv6='auto'
+			else
+				uci set network.wan.ipv6='0'
+			fi
 
-				config_get wan_dns "$cfg" wan_dns
+			config_get wan_dns "$cfg" wan_dns
 				test -n "${wan_dns}" && {
 					uci set network.wan.peerdns='0'
 					uci set network.wan.dns="${wan_dns}"
