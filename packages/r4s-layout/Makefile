@@ -3,7 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=r4s-layout
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 PKG_LICENSE:=GPL-2.0
 PKG_FLAGS:=nonshared
@@ -21,7 +21,8 @@ define Package/r4s-layout
 	+fdisk \
 	+gdisk \
 	+partx-utils \
-	+e2fsprogs
+	+e2fsprogs \
+	+sqlite3-cli
 endef
 
 define Package/r4s-layout/description

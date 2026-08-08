@@ -9,8 +9,8 @@ if ! grep -q 'dae-ipv6-dns' /etc/init.d/daed; then
 fi
 
 # 2) 每 3 分钟兜底检查（核心启停、IPv6 状态变化都覆盖）
-if [ -f /etc/crontabs/root ]; then
-	grep -q 'dae-ipv6-dns' /etc/crontabs/root || echo '*/3 * * * * /usr/bin/dae-ipv6-dns.sh >/dev/null 2>&1' >> /etc/crontabs/root
-fi
+mkdir -p /etc/crontabs
+[ -f /etc/crontabs/root ] || : > /etc/crontabs/root
+grep -q 'dae-ipv6-dns' /etc/crontabs/root || echo '*/3 * * * * /usr/bin/dae-ipv6-dns.sh >/dev/null 2>&1' >> /etc/crontabs/root
 
 exit 0

@@ -37,7 +37,7 @@ if [ "$want_apply" = "1" ]; then
 	}
 	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM dns WHERE selected=1 AND instr(dns,'localdns: ''udp://127.0.0.1:53''')>0;" 2>/dev/null)
 	[ "${has:-0}" -gt 0 ] || {
-		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE dns SET dns=replace(dns,'cloudflare: ''https://cloudflare-dns.com:443/dns-query''','cloudflare: ''https://cloudflare-dns.com:443/dns-query'''||char(10)||'  localdns: ''udp://127.0.0.1:53''') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE dns SET dns=replace(dns,'upstream {','upstream {'||char(10)||'  localdns: ''udp://127.0.0.1:53''') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
 	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM dns WHERE selected=1 AND instr(dns,'subnode(subtag_regex: .*) -> localdns')>0;" 2>/dev/null)
@@ -47,7 +47,7 @@ if [ "$want_apply" = "1" ]; then
 	}
 	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM configs WHERE selected=1 AND instr(global,'bootstrap_resolver:\"127.0.0.1:53\"')>0;" 2>/dev/null)
 	[ "${has:-0}" -gt 0 ] || {
-		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(global,'bootstrap_resolver:\"223.5.5.5:53\"','bootstrap_resolver:\"127.0.0.1:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(global,'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"127.0.0.1:53\"'),'bootstrap_resolver:\"223.5.5.5:53\"','bootstrap_resolver:\"127.0.0.1:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
 else
@@ -67,9 +67,9 @@ else
 		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE dns SET dns=replace(replace(dns,'subnode(subtag_regex: .*) -> localdns'||char(13)||char(10)||'    ',''),'subnode(subtag_regex: .*) -> localdns'||char(10)||'    ','') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
-	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM configs WHERE selected=1 AND instr(global,'bootstrap_resolver:\"127.0.0.1:53\"')>0;" 2>/dev/null)
+	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM configs WHERE selected=1 AND instr(global,'bootstrap_resolver:\"127.0.0.1\"')>0;" 2>/dev/null)
 	[ "${has:-0}" -eq 0 ] || {
-		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(global,'bootstrap_resolver:\"127.0.0.1:53\"','bootstrap_resolver:\"223.5.5.5:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(global,'bootstrap_resolver:\"127.0.0.1:53\"','bootstrap_resolver:\"223.5.5.5:53\"'),'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"223.5.5.5:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
 fi

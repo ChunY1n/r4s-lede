@@ -322,6 +322,7 @@ jobs:
           CONFIG_PACKAGE_ca-bundle=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_unzip=y
+          CONFIG_PACKAGE_sqlite3-cli=y
 
           CONFIG_KERNEL_DEBUG_INFO=y
           # CONFIG_KERNEL_DEBUG_INFO_REDUCED is not set
