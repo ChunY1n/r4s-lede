@@ -112,6 +112,25 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: 修复 LuCI 强制跳转设置向导的 bug
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          HDR=feeds/luci/modules/luci-base/ucode/template/header.ut
+          [ -f "$HDR" ] || { echo "错误: 未找到 $HDR"; exit 1; }
+          # coolsnowwolf/luci 的模板里有一段逻辑：只要 /etc/config/wizard 存在且
+          # finished 标记未写入，就把所有 admin 页面强制跳去 /admin/wizard。
+          # 但向导完成标记没有任何代码会写入，导致每次进 LuCI 都被强制跳转，
+          # 而 /admin/wizard 在本固件里又没有注册，最终变成 404 死循环。
+          # 这里直接把 wizard_pending 固定为 false，禁用强制跳转（向导仍可从菜单进入）。
+          if grep -q "wizard_pending = (wizard_uci.get" "$HDR"; then
+            sed -i "/wizard_pending = (wizard_uci.get/c\wizard_pending = false;" "$HDR"
+          fi
+          if grep -q "wizard_pending = (wizard_uci.get" "$HDR"; then
+            echo "错误: LuCI 向导跳转修复未生效"; exit 1
+          fi
+          echo "LuCI 向导强制跳转已禁用"
+
       - name: 添加 daede 软件源
         if: steps.check_release.outputs.skip != 'true'
         run: |
