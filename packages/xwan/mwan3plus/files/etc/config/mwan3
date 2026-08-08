@@ -148,12 +148,6 @@ config policy 'wanb_wan'
 	list use_member 'wan6_m2_w3'
 	list use_member 'wanb6_m1_w2'
 
-config rule 'https'
-	option sticky '1'
-	option dest_port '443'
-	option proto 'tcp'
-	option use_policy 'balanced'
-
 config rule 'default_rule_v4'
 	option dest_ip '0.0.0.0/0'
 	option use_policy 'balanced'
