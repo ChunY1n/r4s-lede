@@ -101,11 +101,21 @@ add_wizard() {
 		local wifi_ssid wifi_key
 		local lan_ipaddr lan_netmask
 		local device ifname
+		local saved_wan_opts _k _v _pair
 
 		config_get wan_proto "$cfg" wan_proto dhcp
 
 		device=$(uci get network.wan.device 2>/dev/null)
 		ifname=$(uci get network.wan.ifname 2>/dev/null)
+		# 保存向导不管理的其他 wan 选项（如 xwan/mwan3 的 norelease/multipath），
+		# 避免重建 wan 段时把它们弄丢
+		saved_wan_opts=""
+		for _k in $(uci show network.wan 2>/dev/null | sed -n "s/^network\.wan\.\([^=]*\)=.*/\1/p"); do
+			case "$_k" in
+				device|ifname|proto|metric|username|password|keepalive|mtu|ipv6|peerdns|dns|force_link|ipaddr|netmask|gateway) ;;
+				*) _v=$(uci -q get network.wan.$_k); saved_wan_opts="$saved_wan_opts $_k=$_v" ;;
+			esac
+		done
 		case "${wan_proto}" in
 			dhcp)
 				uci delete network.wan
@@ -166,6 +176,12 @@ add_wizard() {
 				}
 			;;
 		esac
+
+		for _pair in $saved_wan_opts; do
+			_k="${_pair%%=*}"
+			_v="${_pair#*=}"
+			uci set network.wan.$_k="$_v"
+		done
 
 		config_get lan_ipaddr "$cfg" lan_ipaddr
 		config_get lan_netmask "$cfg" lan_netmask

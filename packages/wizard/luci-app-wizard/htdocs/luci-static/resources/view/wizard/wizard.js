@@ -78,18 +78,22 @@ return view.extend({
 
 		o = s.taboption('wansetup', form.Value, 'wan_pppoe_user', _('PPPoE username'));
 		o.depends('wan_proto', 'pppoe');
+		o.rmempty = false;
 
 		o = s.taboption('wansetup', form.Value, 'wan_pppoe_pass', _('PPPoE password'));
 		o.depends('wan_proto', 'pppoe');
 		o.password = true;
+		o.rmempty = false;
 
 		o = s.taboption('wansetup', form.Value, 'wan_ipaddr', _('IPv4 address'));
 		o.depends('wan_proto', 'static');
 		o.datatype = 'ip4addr';
+		o.rmempty = false;
 
 		o = s.taboption('wansetup', form.Value, 'wan_netmask', _('IPv4 subnet mask'));
 		o.depends('wan_proto', 'static');
 		o.datatype = 'ip4addr';
+		o.rmempty = false;
 		o.value('255.255.255.0');
 		o.value('255.255.0.0');
 		o.value('255.0.0.0');
