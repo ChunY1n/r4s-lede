@@ -57,12 +57,35 @@ add_xwan() {
 	local enabled number balanced
 	local device id idx ifname
 	local change=0
+	local sticky_change=0
 
 	config_get enabled "$cfg" enabled
 	config_get number "$cfg" number
 	config_get balanced "$cfg" balanced
 	config_get family "$cfg" family
 	config_get track_ip "$cfg" track_ip
+
+	# 443 sticky 规则：开启多拨时移除，让 HTTPS 也能均衡到全部拨号线路；
+	# 关闭多拨（单线）时恢复默认的 sticky 规则，保持出厂行为
+	if [ "x$enabled" = "x1" ]; then
+		uci -q get mwan3.https >/dev/null 2>&1 && {
+			uci -q delete mwan3.https
+			sticky_change=1
+		}
+	else
+		uci -q get mwan3.https >/dev/null 2>&1 || {
+			uci set mwan3.https=rule
+			uci set mwan3.https.sticky='1'
+			uci set mwan3.https.dest_port='443'
+			uci set mwan3.https.proto='tcp'
+			uci set mwan3.https.use_policy='balanced'
+			sticky_change=1
+		}
+	fi
+	if [ "x$sticky_change" = "x1" ]; then
+		uci commit mwan3
+		[ "x$XRELOAD" = "x1" ] && /etc/init.d/mwan3 reload >/dev/null 2>&1
+	fi
 
 	xwan_new=$(uci show xwan | md5sum | head -c32)
 	xwan_old=$(uci get mwan3.globals.xwan_md5)
