@@ -95,6 +95,27 @@ add_wizard() {
 	local opt
 	config_get opt "$cfg" ipv6 '0'
 	switch_onoff odhcpd $opt
+	if [ "$opt" = "1" ]; then
+		# 开启内网 IPv6：dnsmasq RA/DHCPv6 + LAN 前缀分配，恢复 wan6
+		uci -q get dhcp.lan.interface >/dev/null && {
+			uci set dhcp.lan.ra='server'
+			uci set dhcp.lan.dhcpv6='server'
+			uci set dhcp.lan.ra_slaac='1'
+		}
+		uci -q get network.lan.ip6assign >/dev/null || uci set network.lan.ip6assign='60'
+		uci -q delete network.wan6.auto
+	else
+		# 关闭内网 IPv6：dnsmasq 的 RA/DHCPv6 也要停，否则客户端仍能拿到 IPv6
+		uci -q get dhcp.lan.interface >/dev/null && {
+			uci set dhcp.lan.ra='disabled'
+			uci set dhcp.lan.dhcpv6='disabled'
+			uci set dhcp.lan.ra_slaac='0'
+		}
+		uci -q delete network.lan.ip6assign
+		uci -q get network.wan6.interface >/dev/null && uci set network.wan6.auto='0'
+	fi
+	uci commit dhcp
+	uci commit network
 
 	if [ "x$XBOOT" != "x1" ]; then
 		local wan_proto wan_ipaddr wan_netmask wan_gateway wan_dns wan_pppoe_user wan_pppoe_pass
