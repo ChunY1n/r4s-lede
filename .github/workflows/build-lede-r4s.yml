@@ -131,14 +131,23 @@ jobs:
           fi
           echo "LuCI 向导强制跳转已禁用"
 
-      - name: 添加 daede 软件源
+      - name: 添加 daede 软件源（强制使用 kenzok8 的 dae/daed 核心）
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
           echo 'src-git daede https://github.com/kenzok8/openwrt-daede.git' >> feeds.conf.default
           ./scripts/feeds update daede
           ./scripts/feeds install -a
+
+          # LEDE 自带源（coolsnowwolf/packages）里也有老版 dae/daed（0.6.0/1.27.0），
+          # 不剔除会顶掉 kenzok8 的新核心。删掉 LEDE 的副本并强制从 daede 源安装。
+          rm -rf package/feeds/packages/dae package/feeds/packages/daed
+          ./scripts/feeds install -f -p daede dae daed
           ls package/feeds/daede/
+          grep -q '^PKG_VERSION:=2026' package/feeds/daede/dae/Makefile || { echo "错误: dae 不是 kenzok8 新版"; exit 1; }
+          grep -q '^PKG_VERSION:=2026' package/feeds/daede/daed/Makefile || { echo "错误: daed 不是 kenzok8 新版"; exit 1; }
+          [ ! -e package/feeds/packages/dae ] && [ ! -e package/feeds/packages/daed ] || { echo "错误: LEDE 自带 dae/daed 未剔除"; exit 1; }
+
           # 编译后不需要这条源，避免 distfeeds 生成死链
           sed -i '/^src-git daede /d' feeds.conf.default
           sed -i '/^src-git daede /d' feeds.conf 2>/dev/null || true
@@ -432,6 +441,11 @@ jobs:
             grep -qxF "$key" "$KCFG" || { echo "错误: 内核缺少 $key"; exit 1; }
           done
           echo "内核配置验证通过"
+          echo "=== daede 核心版本验证 ==="
+          MF=$(find bin/targets/rockchip/armv8 -name '*.manifest' 2>/dev/null | head -1)
+          [ -n "$MF" ] || { echo "错误: 未找到固件 manifest"; exit 1; }
+          grep -E '^(dae|daed) - 2026\.' "$MF" || { echo "错误: 固件未包含 kenzok8 新版 dae/daed"; exit 1; }
+          echo "daede 核心版本验证通过"
 
       - name: 保存工具链缓存
         if: steps.check_release.outputs.skip != 'true'
