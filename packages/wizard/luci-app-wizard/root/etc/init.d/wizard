@@ -132,6 +132,37 @@ add_wizard() {
 			uci commit wizard
 			uci commit xwan
 		fi
+		# 还原 mwan3 的 IPv6 追踪：回填关闭时保存的 family 与 IPv6 探测地址；
+		# 旧固件未保存时按接口名惯例把 wan6/wanb6 等 v6 接口恢复为 ipv6
+		if [ -f /etc/config/mwan3 ]; then
+			local _mi _mt _mf _mtouched=0
+			for _mi in $(uci show mwan3 2>/dev/null | sed -n "s/^mwan3\.\([^.]*\)=interface$/\1/p"); do
+				_mf=$(uci -q get wizard.default.mwan3_${_mi}_family)
+				if [ -n "$_mf" ]; then
+					uci -q set mwan3.$_mi.family="$_mf"
+					_mtouched=1
+				else
+					case "$_mi" in
+						*6)
+							uci -q set mwan3.$_mi.family='ipv6'
+							_mtouched=1
+						;;
+					esac
+				fi
+				uci -q delete wizard.default.mwan3_${_mi}_family
+				for _mt in $(uci -q get wizard.default.mwan3_${_mi}_track_ip6 2>/dev/null); do
+					uci -q del_list mwan3.$_mi.track_ip="$_mt"
+					uci -q add_list mwan3.$_mi.track_ip="$_mt"
+					_mtouched=1
+				done
+				uci -q delete wizard.default.mwan3_${_mi}_track_ip6
+			done
+			if [ "$_mtouched" = "1" ]; then
+				uci commit wizard
+				uci commit mwan3
+				/etc/init.d/mwan3 restart >/dev/null 2>&1
+			fi
+		fi
 	else
 		# 关闭 IPv6（冗余兜底）：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6，
 		# 并清理 relay/NAT6/静态 v6 等历史配置，确保任何场景下都关得干净
@@ -169,10 +200,18 @@ add_wizard() {
 				/etc/init.d/firewall reload >/dev/null 2>&1
 			fi
 		fi
-		# 同步关闭 mwan3 的 IPv6 追踪，避免无 IPv6 时追踪器空转刷日志
+		# 同步关闭 mwan3 的 IPv6 追踪，避免无 IPv6 时追踪器空转刷日志；
+		# 关闭前保存原 family 与 IPv6 探测地址，供开启 IPv6 时还原
 		if [ -f /etc/config/mwan3 ]; then
-			local _mi _mt
+			local _mi _mt _mf
 			for _mi in $(uci show mwan3 2>/dev/null | sed -n "s/^mwan3\.\([^.]*\)=interface$/\1/p"); do
+				_mf=$(uci -q get mwan3.$_mi.family)
+				[ -n "$_mf" ] && uci -q set wizard.default.mwan3_${_mi}_family="$_mf"
+				for _mt in $(uci -q get mwan3.$_mi.track_ip 2>/dev/null); do
+					case "$_mt" in
+						*:*) uci -q add_list wizard.default.mwan3_${_mi}_track_ip6="$_mt" ;;
+					esac
+				done
 				uci -q set mwan3.$_mi.family='ipv4'
 				for _mt in $(uci -q get mwan3.$_mi.track_ip 2>/dev/null); do
 					case "$_mt" in
@@ -180,6 +219,7 @@ add_wizard() {
 					esac
 				done
 			done
+			uci commit wizard
 			uci commit mwan3
 			/etc/init.d/mwan3 restart >/dev/null 2>&1
 		fi
