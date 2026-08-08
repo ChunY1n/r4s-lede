@@ -3,7 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=r4s-layout
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_LICENSE:=GPL-2.0
 PKG_FLAGS:=nonshared
@@ -46,6 +46,10 @@ define Package/r4s-layout/install
 	$(INSTALL_BIN) ./files/etc/uci-defaults/99-r4s-defaults $(1)/etc/uci-defaults/99-r4s-defaults
 	$(INSTALL_DIR) $(1)/etc/sysctl.d
 	$(INSTALL_DATA) ./files/etc/sysctl.d/90-tcp-bbr.conf $(1)/etc/sysctl.d/90-tcp-bbr.conf
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/etc/init.d/r4s-tcpcca $(1)/etc/init.d/r4s-tcpcca
+	$(INSTALL_DIR) $(1)/usr/share/ucitrack
+	$(INSTALL_DATA) ./files/usr/share/ucitrack/r4s-tcpcca.json $(1)/usr/share/ucitrack/r4s-tcpcca.json
 endef
 
 $(eval $(call BuildPackage,r4s-layout))

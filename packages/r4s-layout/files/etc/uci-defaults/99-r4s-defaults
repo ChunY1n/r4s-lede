@@ -30,4 +30,7 @@ uci -q get firewall.@defaults[0] >/dev/null 2>&1 && {
 	uci commit firewall
 }
 
+# 启用 tcpcca 同步服务，让 LuCI 下拉框能真正切换拥塞控制算法
+/etc/init.d/r4s-tcpcca enable 2>/dev/null
+
 exit 0

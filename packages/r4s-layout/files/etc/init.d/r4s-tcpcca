@@ -1,0 +1,17 @@
+#!/bin/sh /etc/rc.common
+
+START=19
+
+apply_tcpcca() {
+	local cca
+	cca=$(uci -q get firewall.@defaults[0].tcpcca)
+	[ -n "$cca" ] && echo "$cca" > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null
+}
+
+start() {
+	apply_tcpcca
+}
+
+reload() {
+	apply_tcpcca
+}
