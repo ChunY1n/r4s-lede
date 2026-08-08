@@ -96,7 +96,7 @@ add_wizard() {
 	config_get opt "$cfg" ipv6 '0'
 	switch_onoff odhcpd $opt
 	if [ "$opt" = "1" ]; then
-		# 开启 IPv6（对齐 iStoreOS）：恢复 RA/DHCPv6、LAN 前缀、wan6、IPv6 DNS
+		# 开启 IPv6：恢复 RA/DHCPv6、LAN 前缀分配、wan6
 		uci -q get dhcp.lan.interface >/dev/null && {
 			uci set dhcp.lan.ra='server'
 			uci set dhcp.lan.dhcpv6='server'
@@ -112,13 +112,12 @@ add_wizard() {
 		uci -q delete network.lan6
 		uci -q set network.wan.ipv6='auto'
 		uci -q delete network.wan6.auto
-		uci -q delete dhcp.@dnsmasq[0].filter_aaaa
 	else
-		# 关闭 IPv6（对齐 iStoreOS off 档）：RA/DHCPv6/NDP、LAN 前缀、lan6、wan6、IPv6 DNS、NAT6
+		# 关闭 IPv6：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6
 		uci -q get dhcp.lan.interface >/dev/null && {
 			uci set dhcp.lan.ra='disabled'
 			uci set dhcp.lan.dhcpv6='disabled'
-			uci set dhcp.lan.ndp='disabled'
+			uci -q delete dhcp.lan.ndp
 			uci -q delete dhcp.lan.ra_slaac
 			uci -q delete dhcp.lan.ra_flags
 		}
@@ -128,25 +127,6 @@ add_wizard() {
 		uci -q delete network.lan6
 		uci -q set network.wan.ipv6='0'
 		uci -q get network.wan6 >/dev/null && uci set network.wan6.auto='0'
-		uci -q delete dhcp.wan.master
-		uci -q delete dhcp.wan.ra
-		uci -q delete dhcp.wan.dhcpv6
-		uci -q delete dhcp.wan.ndp
-		uci -q delete dhcp.wan6.master
-		uci -q delete dhcp.wan6.ra
-		uci -q delete dhcp.wan6.dhcpv6
-		uci -q delete dhcp.wan6.ndp
-		uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
-		# 关闭 IPv6 NAT（iStoreOS nat6 include）
-		if [ "$(uci -q get firewall.nat6.reload)" = "1" ]; then
-			uci -q delete network.wan6.sourcefilter
-			uci -q delete firewall.@zone[1].masq6
-			uci -q delete firewall.nat6
-			uci commit firewall
-			if [ "x$XBOOT" != "x1" ]; then
-				/etc/init.d/firewall reload >/dev/null 2>&1
-			fi
-		fi
 	fi
 	uci commit dhcp
 	uci commit network
