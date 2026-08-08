@@ -3,7 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=r4s-layout
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=7
+PKG_RELEASE:=8
 
 PKG_LICENSE:=GPL-2.0
 PKG_FLAGS:=nonshared
@@ -50,10 +50,13 @@ define Package/r4s-layout/install
 	$(INSTALL_DATA) ./files/etc/sysctl.d/90-tcp-bbr.conf $(1)/etc/sysctl.d/90-tcp-bbr.conf
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/r4s-tcpcca $(1)/etc/init.d/r4s-tcpcca
+	$(INSTALL_BIN) ./files/etc/init.d/r4s-fullcone $(1)/etc/init.d/r4s-fullcone
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/dae-ipv6-dns.sh $(1)/usr/bin/dae-ipv6-dns.sh
+	$(INSTALL_BIN) ./files/usr/bin/r4s-firewall-sync.sh $(1)/usr/bin/r4s-firewall-sync.sh
 	$(INSTALL_DIR) $(1)/usr/share/ucitrack
 	$(INSTALL_DATA) ./files/usr/share/ucitrack/r4s-tcpcca.json $(1)/usr/share/ucitrack/r4s-tcpcca.json
+	$(INSTALL_DATA) ./files/usr/share/ucitrack/r4s-fullcone.json $(1)/usr/share/ucitrack/r4s-fullcone.json
 endef
 
 $(eval $(call BuildPackage,r4s-layout))

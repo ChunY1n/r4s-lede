@@ -5,7 +5,9 @@ START=19
 apply_tcpcca() {
 	local cca
 	cca=$(uci -q get firewall.@defaults[0].tcpcca)
-	[ -n "$cca" ] && echo "$cca" > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null
+	[ -n "$cca" ] || return 0
+	[ "$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)" = "$cca" ] || \
+		echo "$cca" > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null
 }
 
 start() {

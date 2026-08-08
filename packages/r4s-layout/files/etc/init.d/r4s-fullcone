@@ -1,0 +1,27 @@
+#!/bin/sh /etc/rc.common
+
+START=98
+
+apply_fullcone() {
+	local v
+	v=$(uci -q get firewall.@defaults[0].fullcone)
+	if [ "$v" = "1" ] || [ "$v" = "2" ]; then
+		# 已生效则跳过（定时兜底时避免规则抖动）
+		iptables -t nat -C zone_wan_postrouting -m comment --comment "!r4s-fullcone" -j FULLCONENAT 2>/dev/null || {
+			iptables -t nat -D zone_wan_postrouting -m comment --comment "!fw3" -j MASQUERADE 2>/dev/null
+			iptables -t nat -A zone_wan_postrouting -m comment --comment "!r4s-fullcone" -j FULLCONENAT 2>/dev/null
+		}
+	else
+		iptables -t nat -D zone_wan_postrouting -m comment --comment "!r4s-fullcone" -j FULLCONENAT 2>/dev/null
+		iptables -t nat -C zone_wan_postrouting -m comment --comment "!fw3" -j MASQUERADE 2>/dev/null || \
+			iptables -t nat -A zone_wan_postrouting -m comment --comment "!fw3" -j MASQUERADE 2>/dev/null
+	fi
+}
+
+start() {
+	apply_fullcone
+}
+
+reload() {
+	apply_fullcone
+}

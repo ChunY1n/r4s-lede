@@ -32,5 +32,11 @@ uci -q get firewall.@defaults[0] >/dev/null 2>&1 && {
 
 # 启用 tcpcca 同步服务，让 LuCI 下拉框能真正切换拥塞控制算法
 /etc/init.d/r4s-tcpcca enable 2>/dev/null
+# 启用 FullCone NAT 同步服务（firewall.fullcone 选项真正生效）
+/etc/init.d/r4s-fullcone enable 2>/dev/null
+# 每分钟兜底同步防火墙选项（覆盖 CLI 直改配置等不触发事件的路径）
+mkdir -p /etc/crontabs
+[ -f /etc/crontabs/root ] || : > /etc/crontabs/root
+grep -q 'r4s-firewall-sync' /etc/crontabs/root || echo '* * * * * /usr/bin/r4s-firewall-sync.sh >/dev/null 2>&1' >> /etc/crontabs/root
 
 exit 0
