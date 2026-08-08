@@ -113,6 +113,9 @@ add_wizard() {
 		uci -q set network.wan.ipv6='auto'
 		uci -q delete network.wan6.auto
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='0'
+		# 重新开启内核 IPv6 栈
+		rm -f /etc/sysctl.d/90-r4s-ipv6-off.conf
+		sysctl -w net.ipv6.conf.all.disable_ipv6=0 net.ipv6.conf.default.disable_ipv6=0 >/dev/null 2>&1
 		# 恢复 xwan 健康检查中的 IPv6 地址
 		if [ -f /etc/config/xwan ]; then
 			local _xt _has=0
@@ -180,6 +183,12 @@ add_wizard() {
 			uci commit mwan3
 			/etc/init.d/mwan3 restart >/dev/null 2>&1
 		fi
+		# 彻底关闭内核 IPv6 栈，dae 不再解析/尝试 IPv6 节点
+		cat > /etc/sysctl.d/90-r4s-ipv6-off.conf <<'EOF'
+net.ipv6.conf.all.disable_ipv6=1
+net.ipv6.conf.default.disable_ipv6=1
+EOF
+		sysctl -w net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1
 		# 同步移除 xwan 健康检查中的 IPv6 地址（IPv6 关闭时）
 		if [ -f /etc/config/xwan ]; then
 			local _xt
