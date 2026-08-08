@@ -114,7 +114,8 @@ add_wizard() {
 		uci -q delete network.wan6.auto
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='0'
 	else
-		# 关闭 IPv6：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6
+		# 关闭 IPv6（冗余兜底）：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6，
+		# 并清理 relay/NAT6/静态 v6 等历史配置，确保任何场景下都关得干净
 		uci -q get dhcp.lan.interface >/dev/null && {
 			uci set dhcp.lan.ra='disabled'
 			uci set dhcp.lan.dhcpv6='disabled'
@@ -125,9 +126,30 @@ add_wizard() {
 		uci -q delete network.lan.delegate
 		uci -q delete network.lan.ip6class
 		uci -q delete network.lan.ip6assign
+		uci -q delete network.lan.ip6addr
 		uci -q delete network.lan6
 		uci -q set network.wan.ipv6='0'
 		uci -q get network.wan6 >/dev/null && uci set network.wan6.auto='0'
+		uci -q delete network.wan6.ip6addr
+		# 冗余清理：odhcpd 中继（relay）残留
+		uci -q delete dhcp.wan.master
+		uci -q delete dhcp.wan.ra
+		uci -q delete dhcp.wan.dhcpv6
+		uci -q delete dhcp.wan.ndp
+		uci -q delete dhcp.wan6.master
+		uci -q delete dhcp.wan6.ra
+		uci -q delete dhcp.wan6.dhcpv6
+		uci -q delete dhcp.wan6.ndp
+		# 冗余清理：IPv6 NAT（nat6 include）
+		if [ "$(uci -q get firewall.nat6.reload)" = "1" ]; then
+			uci -q delete network.wan6.sourcefilter
+			uci -q delete firewall.@zone[1].masq6
+			uci -q delete firewall.nat6
+			uci commit firewall
+			if [ "x$XBOOT" != "x1" ]; then
+				/etc/init.d/firewall reload >/dev/null 2>&1
+			fi
+		fi
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
 	fi
 	uci commit dhcp
