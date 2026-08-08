@@ -113,6 +113,22 @@ add_wizard() {
 		uci -q set network.wan.ipv6='auto'
 		uci -q delete network.wan6.auto
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='0'
+		# 恢复 xwan 健康检查中的 IPv6 地址
+		if [ -f /etc/config/xwan ]; then
+			local _xt _has=0
+			for _xt in $(uci -q get wizard.default.xwan_track_ip6 2>/dev/null); do
+				uci -q del_list xwan.@xwan[0].track_ip="$_xt"
+				uci -q add_list xwan.@xwan[0].track_ip="$_xt"
+				_has=1
+			done
+			[ "$_has" = "0" ] && {
+				uci -q add_list xwan.@xwan[0].track_ip='2402:4e00::'
+				uci -q add_list xwan.@xwan[0].track_ip='2400:3200::1'
+			}
+			uci -q delete wizard.default.xwan_track_ip6
+			uci commit wizard
+			uci commit xwan
+		fi
 	else
 		# 关闭 IPv6（冗余兜底）：停 odhcpd、dnsmasq RA/DHCPv6、LAN 前缀分配、wan6，
 		# 并清理 relay/NAT6/静态 v6 等历史配置，确保任何场景下都关得干净
@@ -163,6 +179,21 @@ add_wizard() {
 			done
 			uci commit mwan3
 			/etc/init.d/mwan3 restart >/dev/null 2>&1
+		fi
+		# 同步移除 xwan 健康检查中的 IPv6 地址（IPv6 关闭时）
+		if [ -f /etc/config/xwan ]; then
+			local _xt
+			uci -q delete wizard.default.xwan_track_ip6
+			for _xt in $(uci -q get xwan.@xwan[0].track_ip 2>/dev/null); do
+				case "$_xt" in
+					*:*) uci -q add_list wizard.default.xwan_track_ip6="$_xt" ;;
+				esac
+			done
+			for _xt in $(uci -q get wizard.default.xwan_track_ip6 2>/dev/null); do
+				uci -q del_list xwan.@xwan[0].track_ip="$_xt"
+			done
+			uci commit wizard
+			uci commit xwan
 		fi
 		uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
 	fi
