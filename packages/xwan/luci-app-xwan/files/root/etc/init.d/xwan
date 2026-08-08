@@ -147,6 +147,19 @@ add_xwan() {
 		done
 	fi
 
+	# 重建 balanced 策略成员，避免 use_member 丢失导致所有流量走 unreachable
+	[ "x$balanced" = "x1" ] && {
+		uci get mwan3.balanced >/dev/null 2>&1 || {
+			uci set mwan3.balanced=policy
+			uci set mwan3.balanced.last_resort='unreachable'
+		}
+		uci -q delete mwan3.balanced.use_member
+		for _m in $(uci show mwan3 2>/dev/null | sed -n "s/^mwan3\.\([^.]*\)=member$/\1/p"); do
+			uci add_list mwan3.balanced.use_member="$_m"
+		done
+		change=1
+	}
+
 	#clean up firewall
 	id=$((number))
 	idx=0
