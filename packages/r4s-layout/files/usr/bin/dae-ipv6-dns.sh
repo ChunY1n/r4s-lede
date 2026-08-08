@@ -50,6 +50,15 @@ if [ "$want_apply" = "1" ]; then
 		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(global,'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"127.0.0.1:53\"'),'bootstrap_resolver:\"223.5.5.5:53\"','bootstrap_resolver:\"127.0.0.1:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
+	# 节点连通性检测字段去掉 IPv6 字面量（纯 hex+冒号 条目）
+	for _f in udp_check_dns tcp_check_url; do
+		_old=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT global FROM configs WHERE selected=1;" 2>/dev/null | sed -n "s/.*${_f}:\"\([^\"]*\)\".*/\1/p")
+		[ -n "$_old" ] || continue
+		_new=$(printf '%s' "$_old" | awk -F, '{o=""; for(i=1;i<=NF;i++){if($i ~ /^[0-9a-fA-F:]+$/ && $i ~ /:/) continue; o=o (o==""?"":",") $i} printf "%s", o}')
+		[ "$_new" = "$_old" ] && continue
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(global,'${_f}:\"${_old}\"','${_f}:\"${_new}\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		[ "${n:-0}" -gt 0 ] && changed=1
+	done
 else
 	# ---------- 还原 ----------
 	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM dns WHERE selected=1 AND instr(dns,'qtype(aaaa) -> reject')>0;" 2>/dev/null)
@@ -72,6 +81,19 @@ else
 		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(global,'bootstrap_resolver:\"127.0.0.1:53\"','bootstrap_resolver:\"223.5.5.5:53\"'),'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"223.5.5.5:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
+	# 节点连通性检测字段补回默认 IPv6 条目
+	for _f in udp_check_dns tcp_check_url; do
+		_def="2001:4860:4860::8888"
+		[ "$_f" = "tcp_check_url" ] && _def="2606:4700:4700::1111"
+		_old=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT global FROM configs WHERE selected=1;" 2>/dev/null | sed -n "s/.*${_f}:\"\([^\"]*\)\".*/\1/p")
+		[ -n "$_old" ] || continue
+		case ",$_old," in
+			*",$_def,"*) continue ;;
+		esac
+		_new="$_old,$_def"
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(global,'${_f}:\"${_old}\"','${_f}:\"${_new}\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		[ "${n:-0}" -gt 0 ] && changed=1
+	done
 fi
 
 [ "$changed" = "1" ] || exit 0
