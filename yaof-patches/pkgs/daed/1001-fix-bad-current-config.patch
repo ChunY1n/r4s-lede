@@ -1,0 +1,17 @@
+--- a/graphql/service/config/mutation_utils.go
++++ b/graphql/service/config/mutation_utils.go
+@@ -74,7 +74,13 @@ func Update(ctx context.Context, _id graphql.ID, inputGlobal global.Input) (*Res
+ 	// Prepare to partially update.
+ 	// Convert global string in database to daeConfig.Global.
+ 	c, err := dae.ParseConfig(&m.Global, nil, nil)
+ 	if err != nil {
+-		return nil, fmt.Errorf("bad current config: %w", err)
++		// 当前配置解析失败（例如历史坏值 bootstrap_resolver 缺少端口）时，
++		// 从空 global 解析出默认值，让表单可以修复坏值，而不是永久拒绝保存。
++		empty := "global {\n}\n"
++		c, err = dae.ParseConfig(&empty, nil, nil)
++		if err != nil {
++			return nil, fmt.Errorf("bad current config: %w", err)
++		}
+ 	}
+ 	// Assign input items to daeConfig.Global.

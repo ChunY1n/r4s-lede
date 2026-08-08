@@ -152,6 +152,16 @@ jobs:
           sed -i '/^src-git daede /d' feeds.conf.default
           sed -i '/^src-git daede /d' feeds.conf 2>/dev/null || true
 
+      - name: 补丁 daed：updateConfig 容忍坏的当前配置
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          mkdir -p package/feeds/daede/daed/patches
+          cp -f ../yaof-patches/pkgs/daed/*.patch package/feeds/daede/daed/patches/
+          ls -l package/feeds/daede/daed/patches/
+          grep -q 'empty := "global {' package/feeds/daede/daed/patches/*.patch || { echo "错误: daed 补丁缺失"; exit 1; }
+          echo "daed updateConfig 补丁已就位"
+
       - name: 打开内核 BPF/BTF（dae/daed 必需）
         if: steps.check_release.outputs.skip != 'true'
         run: |
