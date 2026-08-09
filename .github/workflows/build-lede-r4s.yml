@@ -112,36 +112,32 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 修复 sqlite3 依赖名（libsqlite3 → libsqlite3-0）
+      - name: 应用基础补丁（sqlite3 依赖名 / LuCI 向导跳转 / LuCI·rpcd 超时）
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
+          # sqlite3 依赖名（ABI 实际包名 libsqlite3-0）
           MF=feeds/packages/libs/sqlite3/Makefile
           [ -f "$MF" ] || MF=$(find -L feeds/packages -name Makefile -path '*sqlite3*' 2>/dev/null | head -1)
           [ -n "$MF" ] && [ -f "$MF" ] || { echo "错误: 未找到 sqlite3 Makefile"; exit 1; }
-          echo "sqlite3 Makefile: $MF"
           sed -i 's/EXTRA_DEPENDS:=libsqlite3 (=$(PKG_VERSION)-r$(PKG_RELEASE))/EXTRA_DEPENDS:=libsqlite3-0 (=$(PKG_VERSION)-r$(PKG_RELEASE))/' "$MF"
           grep -q 'EXTRA_DEPENDS:=libsqlite3-0' "$MF" || { echo "错误: sqlite3 依赖名补丁未生效"; exit 1; }
-          echo "sqlite3 依赖名已修正为 libsqlite3-0"
-
-      - name: 修复 LuCI 强制跳转设置向导的 bug
-        if: steps.check_release.outputs.skip != 'true'
-        run: |
-          cd lede
+          # LuCI 向导强制跳转禁用（coolsnowwolf/luci 的 wizard_pending 死循环）
           HDR=feeds/luci/modules/luci-base/ucode/template/header.ut
           [ -f "$HDR" ] || { echo "错误: 未找到 $HDR"; exit 1; }
-          # coolsnowwolf/luci 的模板里有一段逻辑：只要 /etc/config/wizard 存在且
-          # finished 标记未写入，就把所有 admin 页面强制跳去 /admin/wizard。
-          # 但向导完成标记没有任何代码会写入，导致每次进 LuCI 都被强制跳转，
-          # 而 /admin/wizard 在本固件里又没有注册，最终变成 404 死循环。
-          # 这里直接把 wizard_pending 固定为 false，禁用强制跳转（向导仍可从菜单进入）。
           if grep -q "wizard_pending = (wizard_uci.get" "$HDR"; then
             sed -i "/wizard_pending = (wizard_uci.get/c\wizard_pending = false;" "$HDR"
           fi
           if grep -q "wizard_pending = (wizard_uci.get" "$HDR"; then
             echo "错误: LuCI 向导跳转修复未生效"; exit 1
           fi
-          echo "LuCI 向导强制跳转已禁用"
+          # LuCI/rpcd 超时 30s→60s
+          sed -i 's/option timeout 30/option timeout 60/' package/system/rpcd/files/rpcd.config
+          grep -q 'option timeout 60' package/system/rpcd/files/rpcd.config || { echo "错误: rpcd 超时未生效"; exit 1; }
+          RPC=feeds/luci/modules/luci-base/htdocs/luci-static/resources/rpc.js
+          sed -i 's/(L\.env\.rpctimeout ?? 20)/(L.env.rpctimeout ?? 60)/' "$RPC"
+          grep -q 'rpctimeout ?? 60' "$RPC" || { echo "错误: LuCI rpc.js 超时未生效"; exit 1; }
+          echo "基础补丁已应用"
 
       - name: 添加 daede 软件源（强制使用 kenzok8 的 dae/daed 核心）
         if: steps.check_release.outputs.skip != 'true'
@@ -164,25 +160,20 @@ jobs:
           sed -i '/^src-git daede /d' feeds.conf.default
           sed -i '/^src-git daede /d' feeds.conf 2>/dev/null || true
 
-      - name: 补丁 daed：updateConfig 容忍坏的当前配置
+      - name: 应用 daede 补丁（daed updateConfig / daede-graphql IPv4）
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
+          # daed updateConfig 容忍坏的当前配置
           mkdir -p package/feeds/daede/daed/patches
           cp -f ../yaof-patches/pkgs/daed/*.patch package/feeds/daede/daed/patches/
-          ls -l package/feeds/daede/daed/patches/
           grep -q 'empty := "global {' package/feeds/daede/daed/patches/*.patch || { echo "错误: daed 补丁缺失"; exit 1; }
-          echo "daed updateConfig 补丁已就位"
-
-      - name: 补丁 daede-graphql 转发（IPv6 关闭时 uclient-fetch 强制 IPv4）
-        if: steps.check_release.outputs.skip != 'true'
-        run: |
-          cd lede
+          # daede-graphql 转发强制 IPv4（IPv6 关闭时 uclient-fetch 报 EPERM）
           F=package/feeds/daede/luci-app-daede/root/www/cgi-bin/daede-graphql
-          [ -f "$F" ] || { echo "错误: 未找到 $F"; exit 1; }
+          [ -f "$F" ] || { echo "错误: 未找到 daede-graphql"; exit 1; }
           sed -i 's/uclient-fetch -q -O -/uclient-fetch -4 -q -O -/g' "$F"
           grep -q 'uclient-fetch -4' "$F" || { echo "错误: daede-graphql 补丁未生效"; exit 1; }
-          echo "daede-graphql IPv4 补丁已就位"
+          echo "daede 补丁已应用"
 
       - name: 打开内核 BPF/BTF（dae/daed 必需）
         if: steps.check_release.outputs.skip != 'true'
@@ -243,7 +234,7 @@ jobs:
           CONFIG_XDP_SOCKETS_DIAG=m
           EOF
 
-      - name: 应用 YAOF 兼容优化（LRNG / WireGuard hotplug / BTF / TCP / TEO / O2 / mitigations）
+      - name: 应用 YAOF 优化与包级补丁（LRNG / WireGuard / BTF / TCP / TEO / O2 / mitigations / odhcp6c）
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
@@ -278,24 +269,10 @@ jobs:
             echo "net.netfilter.nf_conntrack_tcp_max_retrans=5" >> package/kernel/linux/files/sysctl-nf-conntrack.conf
           sed -i 's,rootwait,rootwait mitigations=off,g' target/linux/rockchip/image/mmc.bootscript
           grep -q 'mitigations=off' target/linux/rockchip/image/mmc.bootscript || { echo "错误: mitigations=off 未生效"; exit 1; }
-          echo "YAOF 兼容优化已应用"
-      - name: 应用 YAOF 包级补丁（odhcp6c DHCPv6 hotplug）
-        if: steps.check_release.outputs.skip != 'true'
-        run: |
-          cd lede
+          # odhcp6c DHCPv6 hotplug
           patch -p1 < ../yaof-patches/pkgs/odhcp6c/1002-odhcp6c-support-dhcpv6-hotplug.patch
           grep -q 'hotplug-call dhcpv6' package/network/ipv6/odhcp6c/files/dhcpv6.script || { echo "错误: odhcp6c hotplug 未生效"; exit 1; }
-          echo "odhcp6c 补丁已应用"
-      - name: 放宽 LuCI/rpcd 超时（30s→60s）
-        if: steps.check_release.outputs.skip != 'true'
-        run: |
-          cd lede
-          sed -i 's/option timeout 30/option timeout 60/' package/system/rpcd/files/rpcd.config
-          grep -q 'option timeout 60' package/system/rpcd/files/rpcd.config || { echo "错误: rpcd 超时未生效"; exit 1; }
-          RPC=feeds/luci/modules/luci-base/htdocs/luci-static/resources/rpc.js
-          sed -i 's/(L\.env\.rpctimeout ?? 20)/(L.env.rpctimeout ?? 60)/' "$RPC"
-          grep -q 'rpctimeout ?? 60' "$RPC" || { echo "错误: LuCI rpc.js 超时未生效"; exit 1; }
-          echo "LuCI/rpcd 超时已放宽到 60s"
+          echo "YAOF 优化与补丁已应用"
       - name: 生成 OpenWrt 配置
         if: steps.check_release.outputs.skip != 'true'
         run: |
