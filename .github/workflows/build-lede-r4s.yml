@@ -188,7 +188,8 @@ jobs:
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
-          F=$(find package/feeds/daede/daed -path '*/etc/init.d/daed' 2>/dev/null | head -1)
+          F=package/feeds/daede/daed/root/etc/init.d/daed
+          [ -f "$F" ] || F=$(find -L package/feeds/daede -path '*/etc/init.d/daed' 2>/dev/null | head -1)
           [ -n "$F" ] || { echo "错误: 未找到 daed init 脚本"; exit 1; }
           if ! grep -q 'exec "$@" 2>/dev/null' "$F"; then
             awk '{ if ($0 ~ /procd_set_param command "\$PROG" run/ && !done) { print "\tprocd_set_param command /bin/sh"; print "\tprocd_append_param command -c '\''exec \"$@\" 2>/dev/null'\'' daed-guard"; print "\tprocd_append_param command \"$PROG\" run"; done=1 } else print }' "$F" > "$F.new" && mv "$F.new" "$F"
