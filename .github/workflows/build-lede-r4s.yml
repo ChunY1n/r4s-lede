@@ -488,8 +488,22 @@ jobs:
           cd lede
           make package/index 2>&1 | tail -5
           PKG_DIR="bin/targets/rockchip/armv8/packages"
-          ls "$PKG_DIR" | head -20 || { echo "错误: 未生成 packages 目录"; exit 1; }
+          [ -d "$PKG_DIR" ] || { echo "错误: 未生成 packages 目录"; exit 1; }
           [ -f "$PKG_DIR/Packages" ] || { echo "错误: 未生成 Packages 索引"; exit 1; }
+          APP_SRC="bin/packages/aarch64_generic"
+          [ -d "$APP_SRC" ] || { echo "错误: 未找到应用包目录 $APP_SRC"; exit 1; }
+          rm -rf ../pkgroot
+          mkdir -p ../pkgroot/apps ../pkgroot/kernel
+          find "$APP_SRC" -maxdepth 2 -name '*.ipk' -exec cp {} ../pkgroot/apps/ \;
+          cp "$PKG_DIR"/*.ipk ../pkgroot/kernel/
+          cp "$PKG_DIR"/Packages* ../pkgroot/kernel/
+          MKHASH="$(pwd)/staging_dir/host/bin/mkhash"
+          [ -x "$MKHASH" ] || { echo "错误: 缺少 mkhash 工具"; exit 1; }
+          export MKHASH
+          ( cd ../pkgroot/apps && "$OLDPWD/scripts/ipkg-make-index.sh" . > Packages && gzip -9c Packages > Packages.gz )
+          grep -qE '^Package: (dae|daed|luci-app-daede|curl)$' ../pkgroot/apps/Packages || { echo "错误: apps 索引缺少关键应用包"; exit 1; }
+          echo "应用包数量: $(ls ../pkgroot/apps/*.ipk | wc -l)"
+          echo "内核/目标包数量: $(ls ../pkgroot/kernel/*.ipk | wc -l)"
 
       - name: 保存工具链缓存
         if: steps.check_release.outputs.skip != 'true'
@@ -537,9 +551,6 @@ jobs:
             echo "$(pwd)/$IMG" >> ../firmware_paths.txt
           done
           cat ../firmware_paths.txt
-          PKG_DIR="$(pwd)/bin/targets/rockchip/armv8/packages"
-          [ -d "$PKG_DIR" ] || { echo "错误: 未找到 packages 目录"; exit 1; }
-          echo "$PKG_DIR" > ../package_paths.txt
 
       - name: 校验镜像分区（rootfs = 512MiB）
         if: steps.check_release.outputs.skip != 'true'
@@ -582,10 +593,9 @@ jobs:
             gzip -c "$IMG_FULL" > "$OUTPUT_DIR/r4s-lede-ddr3-${VARIANT_TYPE}-${LEDE_SHA}-${DAE_VER#v}.img.gz"
             sha256sum "$IMG_FULL" > "$OUTPUT_DIR/r4s-lede-ddr3-${VARIANT_TYPE}-${LEDE_SHA}-${DAE_VER#v}.sha256"
           done < firmware_paths.txt
-          PKG_DIR=$(head -1 package_paths.txt)
-          [ -n "$PKG_DIR" ] && [ -d "$PKG_DIR" ] || { echo "错误: packages 目录缺失"; exit 1; }
+          [ -d pkgroot/apps ] && [ -d pkgroot/kernel ] || { echo "错误: pkgroot 目录缺失"; exit 1; }
           tar -czf "$OUTPUT_DIR/packages-${LEDE_SHA}-${DAE_VER#v}.tar.gz" \
-            -C "$(dirname "$PKG_DIR")" "$(basename "$PKG_DIR")"
+            -C pkgroot apps kernel
           {
             echo "Lede for NanoPi R4S DDR3 1GB (dae/daed + xwan)"
             echo '=================================================='
@@ -612,7 +622,7 @@ jobs:
             echo '-----'
             echo "- squashfs: r4s-lede-ddr3-squashfs-${LEDE_SHA}-${DAE_VER#v}.img.gz"
             echo "- ext4    : r4s-lede-ddr3-ext4-${LEDE_SHA}-${DAE_VER#v}.img.gz"
-            echo "- packages: packages-${LEDE_SHA}-${DAE_VER#v}.tar.gz（opkg 私源，与本次固件同内核，可直接安装 kmod-*）"
+            echo "- packages: packages-${LEDE_SHA}-${DAE_VER#v}.tar.gz（opkg 私源：apps=应用包，kernel=内核模块；解压后添加 file:// 源即可 opkg install）"
           } > "$OUTPUT_DIR/README.txt"
           ls -lh "$OUTPUT_DIR/"
 
