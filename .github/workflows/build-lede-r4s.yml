@@ -112,6 +112,16 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: 修复 sqlite3 依赖名（libsqlite3 → libsqlite3-0）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          MF=package/feeds/packages/libs/sqlite3/Makefile
+          [ -f "$MF" ] || { echo "错误: 未找到 $MF"; exit 1; }
+          sed -i 's/EXTRA_DEPENDS:=libsqlite3 (=$(PKG_VERSION)-r$(PKG_RELEASE))/EXTRA_DEPENDS:=libsqlite3-0 (=$(PKG_VERSION)-r$(PKG_RELEASE))/' "$MF"
+          grep -q 'EXTRA_DEPENDS:=libsqlite3-0' "$MF" || { echo "错误: sqlite3 依赖名补丁未生效"; exit 1; }
+          echo "sqlite3 依赖名已修正为 libsqlite3-0"
+
       - name: 修复 LuCI 强制跳转设置向导的 bug
         if: steps.check_release.outputs.skip != 'true'
         run: |
@@ -342,6 +352,7 @@ jobs:
           CONFIG_PACKAGE_ca-bundle=y
           CONFIG_PACKAGE_curl=y
           CONFIG_PACKAGE_unzip=y
+          CONFIG_PACKAGE_libsqlite3=y
           CONFIG_PACKAGE_sqlite3-cli=y
 
           CONFIG_KERNEL_DEBUG_INFO=y
