@@ -116,8 +116,10 @@ jobs:
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
-          MF=package/feeds/packages/libs/sqlite3/Makefile
-          [ -f "$MF" ] || { echo "错误: 未找到 $MF"; exit 1; }
+          MF=feeds/packages/libs/sqlite3/Makefile
+          [ -f "$MF" ] || MF=$(find -L feeds/packages -name Makefile -path '*sqlite3*' 2>/dev/null | head -1)
+          [ -n "$MF" ] && [ -f "$MF" ] || { echo "错误: 未找到 sqlite3 Makefile"; exit 1; }
+          echo "sqlite3 Makefile: $MF"
           sed -i 's/EXTRA_DEPENDS:=libsqlite3 (=$(PKG_VERSION)-r$(PKG_RELEASE))/EXTRA_DEPENDS:=libsqlite3-0 (=$(PKG_VERSION)-r$(PKG_RELEASE))/' "$MF"
           grep -q 'EXTRA_DEPENDS:=libsqlite3-0' "$MF" || { echo "错误: sqlite3 依赖名补丁未生效"; exit 1; }
           echo "sqlite3 依赖名已修正为 libsqlite3-0"
