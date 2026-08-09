@@ -184,6 +184,18 @@ jobs:
           grep -q 'uclient-fetch -4' "$F" || { echo "错误: daede-graphql 补丁未生效"; exit 1; }
           echo "daede-graphql IPv4 补丁已就位"
 
+      - name: daed 静音（stderr 不再转发到系统日志）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          F=$(find package/feeds/daede/daed -path '*/etc/init.d/daed' 2>/dev/null | head -1)
+          [ -n "$F" ] || { echo "错误: 未找到 daed init 脚本"; exit 1; }
+          if ! grep -q 'exec "$@" 2>/dev/null' "$F"; then
+            awk '{ if ($0 ~ /procd_set_param command "\$PROG" run/ && !done) { print "\tprocd_set_param command /bin/sh"; print "\tprocd_append_param command -c '\''exec \"$@\" 2>/dev/null'\'' daed-guard"; print "\tprocd_append_param command \"$PROG\" run"; done=1 } else print }' "$F" > "$F.new" && mv "$F.new" "$F"
+          fi
+          grep -q 'exec "$@" 2>/dev/null' "$F" || { echo "错误: daed 静音补丁未生效"; exit 1; }
+          echo "daed stderr 静音补丁已就位"
+
       - name: 打开内核 BPF/BTF（dae/daed 必需）
         if: steps.check_release.outputs.skip != 'true'
         run: |
