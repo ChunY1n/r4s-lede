@@ -3,7 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=r4s-layout
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 
 PKG_LICENSE:=GPL-2.0
 PKG_FLAGS:=nonshared
@@ -45,6 +45,7 @@ define Package/r4s-layout/install
 	$(INSTALL_BIN) ./files/usr/sbin/diskv $(1)/usr/sbin/diskv
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_BIN) ./files/etc/uci-defaults/99-r4s-defaults $(1)/etc/uci-defaults/99-r4s-defaults
+	$(INSTALL_BIN) ./files/etc/uci-defaults/98-r4s-uci-hook $(1)/etc/uci-defaults/98-r4s-uci-hook
 	$(INSTALL_BIN) ./files/etc/uci-defaults/99-dae-ipv6-link $(1)/etc/uci-defaults/99-dae-ipv6-link
 	$(INSTALL_DIR) $(1)/etc/sysctl.d
 	$(INSTALL_DATA) ./files/etc/sysctl.d/90-tcp-bbr.conf $(1)/etc/sysctl.d/90-tcp-bbr.conf

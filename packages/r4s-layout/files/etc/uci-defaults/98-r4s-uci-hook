@@ -1,0 +1,21 @@
+#!/bin/sh
+# uci 透传包装：CLI 执行 uci commit firewall（或全量 commit）后立即同步
+# tcpcca/fullcone，无需轮询也无需手动重载（LuCI 走 ubus 本来就即时生效）。
+[ -x /sbin/uci.real ] && exit 0
+[ -x /sbin/uci ] || exit 0
+
+mv /sbin/uci /sbin/uci.real
+cat > /sbin/uci <<'EOF'
+#!/bin/sh
+# uci 透传包装：commit 防火墙配置后立即同步 tcpcca/fullcone
+_sync=0
+if [ "$1" = "commit" ] && [ $# -eq 1 ]; then _sync=1; fi
+for _a in "$@"; do [ "$_a" = "firewall" ] && _sync=1; done
+/sbin/uci.real "$@"
+_rc=$?
+[ "$_sync" = "1" ] && [ "$_rc" = "0" ] && /usr/bin/r4s-firewall-sync.sh >/dev/null 2>&1
+exit $_rc
+EOF
+chmod 755 /sbin/uci
+
+exit 0
