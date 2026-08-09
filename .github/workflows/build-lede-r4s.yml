@@ -116,12 +116,12 @@ jobs:
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
-          # sqlite3 依赖名（ABI 实际包名 libsqlite3-0）
+          # sqlite3 去掉 EXTRA_DEPENDS 版本钉死（ABI 包名/版本解析问题），让 +libsqlite3 自动解析
           MF=feeds/packages/libs/sqlite3/Makefile
           [ -f "$MF" ] || MF=$(find -L feeds/packages -name Makefile -path '*sqlite3*' 2>/dev/null | head -1)
           [ -n "$MF" ] && [ -f "$MF" ] || { echo "错误: 未找到 sqlite3 Makefile"; exit 1; }
-          sed -i 's/EXTRA_DEPENDS:=libsqlite3 (=$(PKG_VERSION)-r$(PKG_RELEASE))/EXTRA_DEPENDS:=libsqlite3-0 (=$(PKG_VERSION)-r$(PKG_RELEASE))/' "$MF"
-          grep -q 'EXTRA_DEPENDS:=libsqlite3-0' "$MF" || { echo "错误: sqlite3 依赖名补丁未生效"; exit 1; }
+          sed -i '/^[[:space:]]*EXTRA_DEPENDS:=libsqlite3/d' "$MF"
+          if grep -q '^[[:space:]]*EXTRA_DEPENDS:=libsqlite3' "$MF"; then echo "错误: sqlite3 EXTRA_DEPENDS 未移除"; exit 1; fi
           # LuCI 向导强制跳转禁用（coolsnowwolf/luci 的 wizard_pending 死循环）
           HDR=feeds/luci/modules/luci-base/ucode/template/header.ut
           [ -f "$HDR" ] || { echo "错误: 未找到 $HDR"; exit 1; }
