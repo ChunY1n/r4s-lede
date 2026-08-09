@@ -482,6 +482,15 @@ jobs:
           grep -qE '^kmod-tcp-bbr - ' "$MF" || { echo "错误: 固件未包含 kmod-tcp-bbr (BBRv3)"; exit 1; }
           echo "daede 核心版本验证通过"
 
+      - name: 生成 opkg 包索引（Release 私源）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          make package/index 2>&1 | tail -5
+          PKG_DIR="bin/targets/rockchip/armv8/packages"
+          ls "$PKG_DIR" | head -20 || { echo "错误: 未生成 packages 目录"; exit 1; }
+          [ -f "$PKG_DIR/Packages" ] || { echo "错误: 未生成 Packages 索引"; exit 1; }
+
       - name: 保存工具链缓存
         if: steps.check_release.outputs.skip != 'true'
         continue-on-error: true
@@ -528,6 +537,9 @@ jobs:
             echo "$(pwd)/$IMG" >> ../firmware_paths.txt
           done
           cat ../firmware_paths.txt
+          PKG_DIR="$(pwd)/bin/targets/rockchip/armv8/packages"
+          [ -d "$PKG_DIR" ] || { echo "错误: 未找到 packages 目录"; exit 1; }
+          echo "$PKG_DIR" > ../package_paths.txt
 
       - name: 校验镜像分区（rootfs = 512MiB）
         if: steps.check_release.outputs.skip != 'true'
@@ -570,6 +582,10 @@ jobs:
             gzip -c "$IMG_FULL" > "$OUTPUT_DIR/r4s-lede-ddr3-${VARIANT_TYPE}-${LEDE_SHA}-${DAE_VER#v}.img.gz"
             sha256sum "$IMG_FULL" > "$OUTPUT_DIR/r4s-lede-ddr3-${VARIANT_TYPE}-${LEDE_SHA}-${DAE_VER#v}.sha256"
           done < firmware_paths.txt
+          PKG_DIR=$(head -1 package_paths.txt)
+          [ -n "$PKG_DIR" ] && [ -d "$PKG_DIR" ] || { echo "错误: packages 目录缺失"; exit 1; }
+          tar -czf "$OUTPUT_DIR/packages-${LEDE_SHA}-${DAE_VER#v}.tar.gz" \
+            -C "$(dirname "$PKG_DIR")" "$(basename "$PKG_DIR")"
           {
             echo "Lede for NanoPi R4S DDR3 1GB (dae/daed + xwan)"
             echo '=================================================='
@@ -596,6 +612,7 @@ jobs:
             echo '-----'
             echo "- squashfs: r4s-lede-ddr3-squashfs-${LEDE_SHA}-${DAE_VER#v}.img.gz"
             echo "- ext4    : r4s-lede-ddr3-ext4-${LEDE_SHA}-${DAE_VER#v}.img.gz"
+            echo "- packages: packages-${LEDE_SHA}-${DAE_VER#v}.tar.gz（opkg 私源，与本次固件同内核，可直接安装 kmod-*）"
           } > "$OUTPUT_DIR/README.txt"
           ls -lh "$OUTPUT_DIR/"
 
@@ -620,8 +637,8 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "Lede R4S DDR3 1GB Firmware (dae/daed + xwan) $LEDE_SHA" \
               --notes "lede=$LEDE_SHA · dae=$DAE_VER · U-Boot lede 原生 DDR3" \
-              *.img.gz *.sha256 README.txt || true
+              *.img.gz *.sha256 README.txt packages-*.tar.gz || true
           fi
-          gh release upload "$RELEASE_TAG" *.img.gz *.sha256 README.txt \
+          gh release upload "$RELEASE_TAG" *.img.gz *.sha256 README.txt packages-*.tar.gz \
             --repo "$GITHUB_REPOSITORY" --clobber
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url
