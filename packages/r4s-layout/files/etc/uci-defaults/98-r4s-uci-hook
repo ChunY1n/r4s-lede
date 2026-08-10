@@ -1,19 +1,33 @@
 #!/bin/sh
-# uci 透传包装：CLI 执行 uci commit firewall（或全量 commit）后立即同步
-# tcpcca/fullcone，无需轮询也无需手动重载（LuCI 走 ubus 本来就即时生效）。
+# uci 透传包装：CLI 执行 uci commit firewall 后同步 tcpcca/fullcone；
+# commit network/dhcp/wizard（或全量 commit）后同步 dae-ipv6-dns（IPv6 联动）。
 [ -x /sbin/uci.real ] && exit 0
 [ -x /sbin/uci ] || exit 0
 
 mv /sbin/uci /sbin/uci.real
 cat > /sbin/uci <<'EOF'
 #!/bin/sh
-# uci 透传包装：commit 防火墙配置后立即同步 tcpcca/fullcone
-_sync=0
-if [ "$1" = "commit" ] && [ $# -eq 1 ]; then _sync=1; fi
-for _a in "$@"; do [ "$_a" = "firewall" ] && _sync=1; done
+# uci 透传包装：commit 防火墙同步 tcpcca/fullcone，commit 网络/向导同步 dae-ipv6-dns
+_commit=0
+for _a in "$@"; do [ "$_a" = "commit" ] && _commit=1; done
+_sync_fw=0
+_sync_dns=0
+if [ "$_commit" = "1" ]; then
+	_pkg=0
+	for _a in "$@"; do
+		case "$_a" in
+			firewall) _sync_fw=1; _pkg=1 ;;
+			network|dhcp|wizard) _sync_dns=1; _pkg=1 ;;
+		esac
+	done
+	[ "$_pkg" = "0" ] && { _sync_fw=1; _sync_dns=1; }
+fi
 /sbin/uci.real "$@"
 _rc=$?
-[ "$_sync" = "1" ] && [ "$_rc" = "0" ] && /usr/bin/r4s-firewall-sync.sh >/dev/null 2>&1
+if [ "$_rc" = "0" ]; then
+	[ "$_sync_fw" = "1" ] && /usr/bin/r4s-firewall-sync.sh >/dev/null 2>&1
+	[ "$_sync_dns" = "1" ] && [ -x /usr/bin/dae-ipv6-dns.sh ] && /usr/bin/dae-ipv6-dns.sh >/dev/null 2>&1
+fi
 exit $_rc
 EOF
 chmod 755 /sbin/uci

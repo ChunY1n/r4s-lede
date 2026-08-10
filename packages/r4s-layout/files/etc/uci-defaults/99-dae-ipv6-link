@@ -1,5 +1,5 @@
 #!/bin/sh
-# daede IPv6 关闭联动：daed 启动钩子 + 每 3 分钟兜底定时
+# daede IPv6 关闭联动：daed 启动钩子 + uci commit 透传触发（不轮询）
 [ -f /etc/init.d/daed ] || exit 0
 [ -x /usr/bin/dae-ipv6-dns.sh ] || exit 0
 
@@ -8,9 +8,7 @@ if ! grep -q 'dae-ipv6-dns' /etc/init.d/daed; then
 	awk '/^service_triggers\(\) \{/ && !done { print "service_started() {"; print "\t[ -x /usr/bin/dae-ipv6-dns.sh ] && /usr/bin/dae-ipv6-dns.sh start"; print "}"; print ""; done=1 } { print }' /etc/init.d/daed > /tmp/daed.init.new && cp /tmp/daed.init.new /etc/init.d/daed && chmod 755 /etc/init.d/daed
 fi
 
-# 2) 每 3 分钟兜底检查（核心启停、IPv6 状态变化都覆盖）
-mkdir -p /etc/crontabs
-[ -f /etc/crontabs/root ] || : > /etc/crontabs/root
-grep -q 'dae-ipv6-dns' /etc/crontabs/root || echo '*/3 * * * * /usr/bin/dae-ipv6-dns.sh >/dev/null 2>&1' >> /etc/crontabs/root
+# 2) 清理旧版 3 分钟兜底定时（升级保留配置时一并移除；触发已由 uci 透传包装承担）
+[ -f /etc/crontabs/root ] && sed -i '/dae-ipv6-dns/d' /etc/crontabs/root
 
 exit 0
