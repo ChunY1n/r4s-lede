@@ -47,7 +47,7 @@ if [ "$want_apply" = "1" ]; then
 	}
 	has=$(sqlite3 -cmd '.timeout 8000' "$DB" "SELECT COUNT(*) FROM configs WHERE selected=1 AND instr(global,'bootstrap_resolver:\"127.0.0.1:53\"')>0;" 2>/dev/null)
 	[ "${has:-0}" -gt 0 ] || {
-		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(global,'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"127.0.0.1:53\"'),'bootstrap_resolver:\"223.5.5.5:53\"','bootstrap_resolver:\"127.0.0.1:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
+		n=$(sqlite3 -cmd '.timeout 8000' "$DB" "UPDATE configs SET global=replace(replace(replace(global,'bootstrap_resolver:\"127.0.0.1\"','bootstrap_resolver:\"127.0.0.1:53\"'),'bootstrap_resolver:\"223.5.5.5:53\"','bootstrap_resolver:\"127.0.0.1:53\"'),'bootstrap_resolver:\"\"','bootstrap_resolver:\"127.0.0.1:53\"') WHERE selected=1; SELECT changes();" 2>/dev/null | tail -1)
 		[ "${n:-0}" -gt 0 ] && changed=1
 	}
 	# 节点连通性检测字段去掉 IPv6 字面量（纯 hex+冒号 条目）
