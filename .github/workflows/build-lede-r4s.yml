@@ -273,6 +273,15 @@ jobs:
           patch -p1 < ../yaof-patches/pkgs/odhcp6c/1002-odhcp6c-support-dhcpv6-hotplug.patch
           grep -q 'hotplug-call dhcpv6' package/network/ipv6/odhcp6c/files/dhcpv6.script || { echo "错误: odhcp6c hotplug 未生效"; exit 1; }
           echo "YAOF 优化与补丁已应用"
+      - name: R4S 网卡驱动切换到 r8169（内网下载更快）
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          cd lede
+          MF=target/linux/rockchip/image/armv8.mk
+          sed -i 's/kmod-r8168/kmod-r8169/g' "$MF"
+          grep -q 'kmod-r8169' "$MF" || { echo "错误: r8169 替换失败"; exit 1; }
+          if grep -q 'kmod-r8168' "$MF"; then echo "错误: 仍有 r8168"; exit 1; fi
+          echo "R4S 设备定义已切换: kmod-r8168 -> kmod-r8169"
       - name: 生成 OpenWrt 配置
         if: steps.check_release.outputs.skip != 'true'
         run: |
@@ -299,6 +308,7 @@ jobs:
           CONFIG_PACKAGE_kmod-veth=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           CONFIG_PACKAGE_kmod-macvlan=y
+          CONFIG_PACKAGE_kmod-r8169=y
           CONFIG_PACKAGE_kmod-tcp-bbr=y
           CONFIG_PACKAGE_kmod-mac80211=y
           CONFIG_PACKAGE_kmod-mt7601u=y
