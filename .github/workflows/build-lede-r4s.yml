@@ -458,7 +458,7 @@ jobs:
         if: steps.check_release.outputs.skip != 'true'
         run: |
           cd lede
-          KCFG=$(find build_dir -type f -name .config -path '*linux-6.12*' 2>/dev/null | head -1)
+          KCFG=$(find build_dir/target-* -type f -name .config -path '*linux-6.12*' 2>/dev/null | head -1)
           [ -n "$KCFG" ] || { echo "错误: 未找到内核 .config"; exit 1; }
           echo "内核配置: $KCFG"
           for key in \
